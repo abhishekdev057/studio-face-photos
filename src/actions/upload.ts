@@ -46,17 +46,17 @@ export async function uploadPhoto(formData: FormData) {
         }
 
         // Check for duplicates in DB
-        const existingPhoto = await prisma.photo.findFirst({
-            where: {
-                eventId: currentEventId,
-                hash: hash
-            }
-        });
+        // const existingPhoto = await prisma.photo.findFirst({
+        //     where: {
+        //         eventId: currentEventId,
+        //         hash: hash
+        //     }
+        // });
 
-        if (existingPhoto) {
-            console.log(`Duplicate photo detected (${hash}). Skipping.`);
-            return { success: false, duplicate: true };
-        }
+        // if (existingPhoto) {
+        //     console.log(`Duplicate photo detected (${hash}). Skipping.`);
+        //     return { success: false, duplicate: true };
+        // }
 
         // Upload to Cloudinary
         const uploadResult = await new Promise<any>((resolve, reject) => {
