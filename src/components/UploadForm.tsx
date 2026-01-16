@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { uploadPhoto } from '@/actions/upload';
 import * as faceapi from 'face-api.js';
 import { Upload, Loader2, CheckCircle } from 'lucide-react';
+import { resizeImage } from "@/utils/image";
 
 export default function UploadForm() {
     const [loading, setLoading] = useState(false);
@@ -44,17 +45,23 @@ export default function UploadForm() {
         let dupeCount = 0;
 
         for (const file of files) {
-            setStatus(`Scanning faces in ${file.name}...`);
+            setStatus(`Optimizing ${file.name}...`);
 
             try {
-                // Face detection
-                const img = await faceapi.bufferToImage(file);
+                // Resize image to prevent memory crash on mobile & speed up
+                const resizedBlob = await resizeImage(file, 1280);
+                const resizedFile = new File([resizedBlob], file.name, { type: 'image/jpeg' });
+
+                setStatus(`Scanning faces in ${file.name}...`);
+
+                // Face detection on resized image
+                const img = await faceapi.bufferToImage(resizedBlob);
                 const detections = await faceapi.detectAllFaces(img).withFaceLandmarks().withFaceDescriptors();
 
                 const descriptors = detections.map(d => Array.from(d.descriptor));
 
                 const formData = new FormData();
-                formData.append("file", file);
+                formData.append("file", resizedFile); // Upload smaller file
                 formData.append("descriptors", JSON.stringify(descriptors));
 
                 setStatus(`Uploading ${file.name}...`);
@@ -69,6 +76,7 @@ export default function UploadForm() {
                 setProgress({ current: processed, total: files.length });
             } catch (err) {
                 console.error(`Error uploading ${file.name}`, err);
+                setStatus(`Failed: ${file.name}`);
             }
         }
 

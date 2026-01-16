@@ -5,6 +5,7 @@ import { searchPhotos } from "@/actions/search";
 import * as faceapi from "face-api.js";
 import { Camera, Loader2, Download, Search, X, FlipHorizontal, ScanFace } from "lucide-react";
 import Webcam from "react-webcam";
+import { resizeImage } from "@/utils/image";
 
 
 interface GuestSearchProps {
@@ -101,7 +102,15 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
     const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files || e.target.files.length === 0) return;
         if (!modelLoaded) return alert("Models not loaded yet");
-        processImage(e.target.files[0]);
+
+        try {
+            const file = e.target.files[0];
+            const resizedBlob = await resizeImage(file, 1280);
+            processImage(resizedBlob);
+        } catch (e) {
+            console.error(e);
+            alert("Error resizing image");
+        }
     };
 
     const handleCapture = useCallback(() => {
@@ -272,3 +281,4 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
         </div>
     );
 }
+
