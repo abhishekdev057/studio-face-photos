@@ -1,10 +1,16 @@
 "use server"
 
 import { auth } from "@/auth";
-
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import crypto from "crypto";
+import { v2 as cloudinary } from 'cloudinary';
+
+cloudinary.config({
+    cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 export async function uploadPhoto(formData: FormData) {
     try {
@@ -16,14 +22,14 @@ export async function uploadPhoto(formData: FormData) {
 
         if (!file) throw new Error("No file");
 
-        // Convert file to base64
+        // Convert file to base64 for Cloudinary upload and Hashing
         const buffer = Buffer.from(await file.arrayBuffer());
         const base64 = `data:${file.type};base64,${buffer.toString("base64")}`;
 
         // Calculate Hash
         const hash = crypto.createHash('sha256').update(buffer).digest('hex');
 
-        // Create Event if not exists for this user
+        // Create Event if not exists
         const event = await prisma.event.findFirst({
             where: { ownerId: session.user.id }
         });
@@ -34,13 +40,12 @@ export async function uploadPhoto(formData: FormData) {
                 data: {
                     name: "Wedding Event",
                     ownerId: session.user.id!,
-
                 }
             });
             currentEventId = newEvent.id;
         }
 
-        // Check for duplicates
+        // Check for duplicates in DB
         const existingPhoto = await prisma.photo.findFirst({
             where: {
                 eventId: currentEventId,
@@ -53,30 +58,43 @@ export async function uploadPhoto(formData: FormData) {
             return { success: false, duplicate: true };
         }
 
-        // Save Photo
-        // Note: Storing base64 in DB is not ideal for production.
+        // Upload to Cloudinary
+        const uploadResult = await new Promise<any>((resolve, reject) => {
+            cloudinary.uploader.upload(base64, {
+                folder: "wedding_event",
+                resource_type: "auto"
+            }, (error, result) => {
+                if (error) reject(error);
+                else resolve(result);
+            });
+        });
+
+        const cloudUrl = uploadResult.secure_url;
+        const width = uploadResult.width;
+        const height = uploadResult.height;
+
+        // Save Photo Reference to DB
         const photo = await prisma.photo.create({
             data: {
-                url: base64,
-                width: 0,
-                height: 0,
+                url: cloudUrl,
+                width: width,
+                height: height,
                 eventId: currentEventId,
                 hash: hash
             }
         });
 
-        // Save Faces
+        // Save Faces (Vectors)
         if (descriptorsStr) {
             const descriptors = JSON.parse(descriptorsStr);
             for (const desc of descriptors) {
                 const vectorArray = Object.values(desc);
                 const vectorString = `[${vectorArray.join(",")}]`;
                 const faceId = crypto.randomUUID();
-
                 let personId: string | null = null;
 
                 try {
-                    // Find closest match using pgvector operator
+                    // Vector Search
                     const matches = await prisma.$queryRaw<any[]>`
                     SELECT "personId", "embedding" <-> ${vectorString}::vector as distance 
                     FROM "Face"
@@ -85,19 +103,16 @@ export async function uploadPhoto(formData: FormData) {
                     LIMIT 1
                   `;
 
-                    // face-api.js recommends Euclidean distance of 0.6. We use 0.5 to be safer (fewer false positives).
                     if (matches.length > 0 && matches[0].distance < 0.5) {
-
                         personId = matches[0].personId;
                     } else {
-                        // Create new person
                         const newPerson = await prisma.person.create({
                             data: { eventId: currentEventId }
                         });
                         personId = newPerson.id;
                     }
                 } catch (e) {
-                    console.error("Vector search failed (likely locally), creating new person fallback", e);
+                    console.error("Vector search failed, fallback new person", e);
                     const newPerson = await prisma.person.create({
                         data: { eventId: currentEventId }
                     });
@@ -111,7 +126,6 @@ export async function uploadPhoto(formData: FormData) {
                     vectorString,
                     personId
                 );
-
             }
         }
 

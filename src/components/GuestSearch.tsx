@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { searchPhotos } from "@/actions/search";
 import * as faceapi from "face-api.js";
-import { Camera, Loader2, Download, Search, X, FlipHorizontal, ScanFace } from "lucide-react";
+import { Camera, Loader2, Download, Search, X, FlipHorizontal, ScanFace, Eye } from "lucide-react";
 import Webcam from "react-webcam";
 import { resizeImage } from "@/utils/image";
 
@@ -17,14 +17,13 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
     const [loading, setLoading] = useState(false);
     const [modelLoaded, setModelLoaded] = useState(false);
     const [photos, setPhotos] = useState<any[]>(initialPhotos);
-    // If we have initial photos, we consider it "searched" (showing results)
     const [searched, setSearched] = useState(initialPhotos.length > 0);
     const [cameraOpen, setCameraOpen] = useState(false);
-    const [scannedImage, setScannedImage] = useState<string | null>(null); // For the preview effect
+    const [scannedImage, setScannedImage] = useState<string | null>(null);
+    const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
     const webcamRef = useRef<Webcam>(null);
 
     useEffect(() => {
-        // Only load models if we need to search (not in shared/all mode initially)
         if (mode === 'search') {
             const loadModels = async () => {
                 const MODEL_URL = "https://justadudewhohacks.github.io/face-api.js/models";
@@ -48,7 +47,6 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
         setSearched(true);
         setCameraOpen(false);
 
-        // Store the image for the "Scanning..." UI
         if (typeof imageSrc === 'string') {
             setScannedImage(imageSrc);
         } else {
@@ -72,12 +70,10 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
                 return;
             }
 
-            // Use the largest face found (usually the user)
             const descriptor = Array.from(detections[0].descriptor);
 
             const res = await searchPhotos(descriptor);
             if (res.success) {
-                // Client-side dedupe as failsafe
                 const existingIds = new Set();
                 const unique = (res.photos || []).filter((p: any) => {
                     if (existingIds.has(p.id)) return false;
@@ -93,8 +89,6 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
             alert("Error processing image");
         } finally {
             setLoading(false);
-            // We keep scannedImage for a moment or clear it? 
-            // Better to clear it so we see results cleanly.
             setScannedImage(null);
         }
     };
@@ -120,13 +114,11 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
         }
     }, [webcamRef]);
 
-    // If showing shared album or all photos, we skip the upload UI initially
     const showUploadUI = !searched && mode === 'search';
 
     return (
         <div className="w-full max-w-6xl mx-auto space-y-12">
 
-            {/* Header for Shared/All Mode */}
             {mode !== 'search' && (
                 <div className="text-center space-y-2">
                     <h2 className="text-2xl font-bold text-white">
@@ -136,17 +128,12 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
                 </div>
             )}
 
-            {/* Scanning Overlay (The "Good Spinner") */}
             {loading && scannedImage && (
                 <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-md">
                     <div className="relative w-64 h-64 rounded-full overflow-hidden border-4 border-cyan-500/50 shadow-[0_0_50px_rgba(6,182,212,0.5)]">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={scannedImage} alt="Scanning" className="w-full h-full object-cover opacity-50 grayscale" />
-
-                        {/* Scanning Laser Line */}
                         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-cyan-400/50 to-transparent h-4 w-full animate-[scan_2s_ease-in-out_infinite]" />
-
-                        {/* Grid Overlay */}
                         <div className="absolute inset-0 bg-[linear-gradient(rgba(6,182,212,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.2)_1px,transparent_1px)] bg-[size:20px_20px] opacity-30" />
                     </div>
                     <div className="mt-8 flex flex-col items-center gap-2">
@@ -159,10 +146,8 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
                 </div>
             )}
 
-            {/* Search Input Area */}
             {showUploadUI && (
                 <div className="flex flex-col items-center justify-center space-y-6">
-
                     {cameraOpen ? (
                         <div className="relative w-full max-w-md aspect-video bg-black rounded-xl overflow-hidden shadow-2xl">
                             <Webcam
@@ -195,10 +180,8 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
                     flex items-center justify-center overflow-hidden
                     group-hover:border-cyan-500
                     `}>
-                                    {/* Static Camera Icon (Loading handled by overlay now) */}
                                     <Camera className="w-10 h-10 text-zinc-500 group-hover:text-cyan-400 transition" />
                                 </div>
-
                                 <input
                                     type="file"
                                     accept="image/*"
@@ -206,14 +189,11 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
                                     onChange={handleUpload}
                                     disabled={loading || !modelLoaded}
                                 />
-
                                 <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-cyan-600 text-white text-xs px-3 py-1 rounded-full font-bold shadow-lg whitespace-nowrap">
                                     UPLOAD FILE
                                 </div>
                             </div>
-
                             <div className="text-zinc-500 text-sm">OR</div>
-
                             <button
                                 onClick={() => setCameraOpen(true)}
                                 disabled={!modelLoaded || loading}
@@ -224,14 +204,12 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
                             </button>
                         </div>
                     )}
-
                     <p className="text-zinc-500 text-center max-w-sm">
                         {!modelLoaded ? "Loading AI..." : "Take or upload a selfie. We'll find every photo you're in."}
                     </p>
                 </div>
             )}
 
-            {/* Results Grid */}
             {searched && (
                 <div className="space-y-4">
                     {mode === 'search' && (
@@ -252,13 +230,22 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
                                     <img
                                         src={photo.url}
                                         alt="Memory"
-                                        className="w-full rounded-lg bg-zinc-900 border border-zinc-800 group-hover:border-cyan-500/50 transition-all"
+                                        className="w-full rounded-lg bg-zinc-900 border border-zinc-800 group-hover:border-cyan-500/50 transition-all cursor-pointer"
+                                        onClick={() => setSelectedPhoto(photo.url)}
                                     />
                                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 rounded-lg backdrop-blur-sm">
+                                        <button
+                                            onClick={() => setSelectedPhoto(photo.url)}
+                                            className="bg-white text-black p-2 rounded-full hover:scale-110 transition-transform"
+                                            title="View Full Size"
+                                        >
+                                            <Eye className="w-5 h-5" />
+                                        </button>
                                         <a
                                             href={photo.url}
                                             download={`photo-${photo.id}.jpg`}
                                             className="bg-white text-black p-2 rounded-full hover:scale-110 transition-transform"
+                                            title="Download"
                                         >
                                             <Download className="w-5 h-5" />
                                         </a>
@@ -268,7 +255,6 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
                         </div>
                     )}
 
-                    {/* Reset Button to search again if desired */}
                     {mode !== 'search' && (
                         <div className="flex justify-center pt-8 border-t border-zinc-800">
                             <a href="/guest" className="text-zinc-500 hover:text-white text-sm">
@@ -278,7 +264,25 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
                     )}
                 </div>
             )}
+
+            {/* View Photo Modal */}
+            {selectedPhoto && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 p-4 animate-in fade-in duration-200" onClick={() => setSelectedPhoto(null)}>
+                    <button
+                        className="absolute top-4 right-4 text-white hover:text-cyan-400 p-2 z-50"
+                        onClick={() => setSelectedPhoto(null)}
+                    >
+                        <X className="w-8 h-8" />
+                    </button>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                        src={selectedPhoto}
+                        alt="Full size memory"
+                        className="max-w-full max-h-[90vh] rounded-lg shadow-2xl border border-zinc-800 object-contain"
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                </div>
+            )}
         </div>
     );
 }
-
