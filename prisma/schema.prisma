@@ -91,6 +91,7 @@ model Photo {
   url       String
   width     Int
   height    Int
+  hash      String?  @default("") // SHA-256 hash for deduplication
   eventId   String
   event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   faces     Face[]

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { searchPhotos } from "@/actions/search";
 import * as faceapi from "face-api.js";
-import { Camera, Loader2, Download, Search, X, FlipHorizontal } from "lucide-react";
+import { Camera, Loader2, Download, Search, X, FlipHorizontal, ScanFace } from "lucide-react";
 import Webcam from "react-webcam";
 
 
@@ -19,6 +19,7 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
     // If we have initial photos, we consider it "searched" (showing results)
     const [searched, setSearched] = useState(initialPhotos.length > 0);
     const [cameraOpen, setCameraOpen] = useState(false);
+    const [scannedImage, setScannedImage] = useState<string | null>(null); // For the preview effect
     const webcamRef = useRef<Webcam>(null);
 
     useEffect(() => {
@@ -46,6 +47,13 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
         setSearched(true);
         setCameraOpen(false);
 
+        // Store the image for the "Scanning..." UI
+        if (typeof imageSrc === 'string') {
+            setScannedImage(imageSrc);
+        } else {
+            setScannedImage(URL.createObjectURL(imageSrc));
+        }
+
         try {
             let img;
             if (typeof imageSrc === "string") {
@@ -59,6 +67,7 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
             if (detections.length === 0) {
                 alert("No face detected in selfie. Please try again.");
                 setLoading(false);
+                setScannedImage(null);
                 return;
             }
 
@@ -83,6 +92,9 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
             alert("Error processing image");
         } finally {
             setLoading(false);
+            // We keep scannedImage for a moment or clear it? 
+            // Better to clear it so we see results cleanly.
+            setScannedImage(null);
         }
     };
 
@@ -112,6 +124,29 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
                         {mode === 'shared' ? "Shared Personal Album" : "Event Gallery"}
                     </h2>
                     {mode === 'shared' && <p className="text-zinc-400">Here are the photos picked just for you.</p>}
+                </div>
+            )}
+
+            {/* Scanning Overlay (The "Good Spinner") */}
+            {loading && scannedImage && (
+                <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-md">
+                    <div className="relative w-64 h-64 rounded-full overflow-hidden border-4 border-cyan-500/50 shadow-[0_0_50px_rgba(6,182,212,0.5)]">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={scannedImage} alt="Scanning" className="w-full h-full object-cover opacity-50 grayscale" />
+
+                        {/* Scanning Laser Line */}
+                        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-cyan-400/50 to-transparent h-4 w-full animate-[scan_2s_ease-in-out_infinite]" />
+
+                        {/* Grid Overlay */}
+                        <div className="absolute inset-0 bg-[linear-gradient(rgba(6,182,212,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.2)_1px,transparent_1px)] bg-[size:20px_20px] opacity-30" />
+                    </div>
+                    <div className="mt-8 flex flex-col items-center gap-2">
+                        <div className="flex items-center gap-3 text-cyan-400 font-mono text-lg animate-pulse">
+                            <ScanFace className="w-6 h-6" />
+                            SCANNING FACE ID...
+                        </div>
+                        <p className="text-zinc-500 text-sm">Matching against thousands of memories</p>
+                    </div>
                 </div>
             )}
 
@@ -149,13 +184,10 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
                                 <div className={`
                     w-32 h-32 rounded-full bg-zinc-900 border-2 border-dashed border-zinc-700 
                     flex items-center justify-center overflow-hidden
-                    ${loading ? "animate-pulse" : "group-hover:border-cyan-500"}
+                    group-hover:border-cyan-500
                     `}>
-                                    {loading ? (
-                                        <Loader2 className="w-10 h-10 text-cyan-400 animate-spin" />
-                                    ) : (
-                                        <Camera className="w-10 h-10 text-zinc-500 group-hover:text-cyan-400 transition" />
-                                    )}
+                                    {/* Static Camera Icon (Loading handled by overlay now) */}
+                                    <Camera className="w-10 h-10 text-zinc-500 group-hover:text-cyan-400 transition" />
                                 </div>
 
                                 <input
@@ -240,4 +272,3 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
         </div>
     );
 }
-

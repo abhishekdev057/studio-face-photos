@@ -4,7 +4,7 @@ import { auth } from "@/auth";
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-
+import crypto from "crypto";
 
 export async function uploadPhoto(formData: FormData) {
     try {
@@ -19,6 +19,9 @@ export async function uploadPhoto(formData: FormData) {
         // Convert file to base64
         const buffer = Buffer.from(await file.arrayBuffer());
         const base64 = `data:${file.type};base64,${buffer.toString("base64")}`;
+
+        // Calculate Hash
+        const hash = crypto.createHash('sha256').update(buffer).digest('hex');
 
         // Create Event if not exists for this user
         const event = await prisma.event.findFirst({
@@ -37,15 +40,28 @@ export async function uploadPhoto(formData: FormData) {
             currentEventId = newEvent.id;
         }
 
+        // Check for duplicates
+        const existingPhoto = await prisma.photo.findFirst({
+            where: {
+                eventId: currentEventId,
+                hash: hash
+            }
+        });
+
+        if (existingPhoto) {
+            console.log(`Duplicate photo detected (${hash}). Skipping.`);
+            return { success: false, duplicate: true };
+        }
 
         // Save Photo
         // Note: Storing base64 in DB is not ideal for production.
         const photo = await prisma.photo.create({
             data: {
                 url: base64,
-                width: 0, // We could extract this
+                width: 0,
                 height: 0,
                 eventId: currentEventId,
+                hash: hash
             }
         });
 
@@ -106,3 +122,4 @@ export async function uploadPhoto(formData: FormData) {
         return { success: false, error: "Failed to upload" };
     }
 }
+

@@ -9,6 +9,8 @@ export default function UploadForm() {
     const [loading, setLoading] = useState(false);
     const [modelLoaded, setModelLoaded] = useState(false);
     const [status, setStatus] = useState("");
+    const [progress, setProgress] = useState({ current: 0, total: 0 });
+    const [duplicates, setDuplicates] = useState(0);
 
     useEffect(() => {
         const loadModels = async () => {
@@ -34,39 +36,58 @@ export default function UploadForm() {
         if (!modelLoaded) return alert("Models not loaded yet");
 
         setLoading(true);
+        setDuplicates(0);
         const files = Array.from(e.target.files);
+        setProgress({ current: 0, total: files.length });
 
         let processed = 0;
+        let dupeCount = 0;
 
         for (const file of files) {
-            setStatus(`Processing ${file.name}...`);
+            setStatus(`Scanning faces in ${file.name}...`);
 
-            // Face detection
-            // We need to create an image element
-            const img = await faceapi.bufferToImage(file);
-            const detections = await faceapi.detectAllFaces(img).withFaceLandmarks().withFaceDescriptors();
+            try {
+                // Face detection
+                const img = await faceapi.bufferToImage(file);
+                const detections = await faceapi.detectAllFaces(img).withFaceLandmarks().withFaceDescriptors();
 
-            const descriptors = detections.map(d => Array.from(d.descriptor));
+                const descriptors = detections.map(d => Array.from(d.descriptor));
 
-            const formData = new FormData();
-            formData.append("file", file);
-            formData.append("descriptors", JSON.stringify(descriptors));
+                const formData = new FormData();
+                formData.append("file", file);
+                formData.append("descriptors", JSON.stringify(descriptors));
 
-            await uploadPhoto(formData);
-            processed++;
+                setStatus(`Uploading ${file.name}...`);
+                const res = await uploadPhoto(formData);
+                processed++;
+
+                if (res.duplicate) {
+                    dupeCount++;
+                    setDuplicates(dupeCount);
+                }
+
+                setProgress({ current: processed, total: files.length });
+            } catch (err) {
+                console.error(`Error uploading ${file.name}`, err);
+            }
         }
 
         setLoading(false);
-        setStatus(`Uploaded ${processed} photos successfully!`);
-        setTimeout(() => setStatus(""), 3000);
+        setStatus(`Done! Evaluated ${processed} photos.`);
+
+        // Don't clear status immediately if there are duplicates to show
+        if (dupeCount === 0) {
+            setTimeout(() => setStatus(""), 4000);
+            setTimeout(() => setProgress({ current: 0, total: 0 }), 4000);
+        }
     };
 
     return (
         <div className="w-full max-w-xl mx-auto p-6 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl">
             <div className="flex flex-col items-center justify-center space-y-4">
-                <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center">
+                <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center relative">
                     {loading ? (
-                        <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+                        <div className="absolute inset-0 rounded-full border-4 border-zinc-700 border-t-cyan-400 animate-spin" />
                     ) : (
                         <Upload className="w-8 h-8 text-zinc-400" />
                     )}
@@ -78,7 +99,33 @@ export default function UploadForm() {
                 </p>
 
                 {!modelLoaded && <p className="text-yellow-500 text-sm">Initializing AI...</p>}
-                {status && <p className="text-cyan-400 text-sm">{status}</p>}
+
+                {/* Status & Progress Bar */}
+                {status && (
+                    <div className="w-full space-y-2">
+                        <div className="flex justify-between text-xs text-cyan-400 font-mono">
+                            <span>{status}</span>
+                            <div className="flex gap-2">
+                                {duplicates > 0 && <span className="text-yellow-500 font-bold">{duplicates} Duplicate(s)</span>}
+                                {loading && <span>{progress.current} / {progress.total}</span>}
+                            </div>
+                        </div>
+                        {loading && (
+                            <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
+                                <div
+                                    className="h-full bg-cyan-500 transition-all duration-300 ease-out"
+                                    style={{ width: `${(progress.current / progress.total) * 100}%` }}
+                                />
+                            </div>
+                        )}
+                        {!loading && duplicates > 0 && (
+                            <div className="border border-yellow-500/20 bg-yellow-500/10 p-2 rounded text-xs text-yellow-200 text-center mt-2">
+                                warning: {duplicates} identical photos were skipped.
+                            </div>
+                        )}
+                    </div>
+                )}
+
 
                 <label className={`
           relative cursor-pointer bg-gradient-to-r from-cyan-600 to-blue-600 
@@ -86,7 +133,7 @@ export default function UploadForm() {
           transition-all shadow-lg hover:shadow-cyan-500/20
           ${loading || !modelLoaded ? 'opacity-50 pointer-events-none' : ''}
         `}>
-                    <span>Select Photos</span>
+                    <span>{loading ? "Processing..." : "Select Photos"}</span>
                     <input
                         type="file"
                         multiple
@@ -100,3 +147,4 @@ export default function UploadForm() {
         </div>
     );
 }
+
