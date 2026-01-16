@@ -2,31 +2,24 @@
 
 :root {
   --background: #09090b;
-  /* Zinc 950 */
   --foreground: #fafafa;
-  /* Zinc 50 */
   --card: #18181b;
-  /* Zinc 900 */
   --card-foreground: #fafafa;
   --popover: #18181b;
   --popover-foreground: #fafafa;
   --primary: #fafafa;
   --primary-foreground: #18181b;
   --secondary: #27272a;
-  /* Zinc 800 */
   --secondary-foreground: #fafafa;
   --muted: #27272a;
   --muted-foreground: #a1a1aa;
-  /* Zinc 400 */
   --accent: #27272a;
   --accent-foreground: #fafafa;
   --destructive: #7f1d1d;
-  /* Red 900 */
   --destructive-foreground: #fafafa;
   --border: #27272a;
   --input: #27272a;
   --ring: #d4d4d8;
-  /* Zinc 300 */
   --radius: 0.5rem;
 }
 
@@ -53,6 +46,21 @@
   --radius-sm: calc(var(--radius) - 2px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
+
+  --font-sans: var(--font-sans, "Outfit", sans-serif);
+}
+
+/* Animations */
+@keyframes enter {
+  0% {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 @keyframes scan {
@@ -72,27 +80,50 @@
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+@keyframes slow-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-/* Custom scrollbar for metal feel */
+/* Utilities */
+.animate-enter {
+  animation: enter 0.5s ease-out forwards;
+}
+
+.glass-panel {
+  @apply bg-zinc-900/40 backdrop-blur-xl border border-white/5 shadow-2xl;
+}
+
+.glass-button {
+  @apply bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all backdrop-blur-sm active:scale-95;
+}
+
+/* Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #09090b;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
   background: #27272a;
   border-radius: 9999px;
-  border: 1px solid #18181b;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: #3f3f46;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
 }

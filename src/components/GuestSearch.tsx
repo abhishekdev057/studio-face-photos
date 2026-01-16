@@ -1,12 +1,9 @@
-"use client"
-
 import { useState, useEffect, useRef, useCallback } from "react";
 import { searchPhotos } from "@/actions/search";
 import * as faceapi from "face-api.js";
-import { Camera, Loader2, Download, Search, X, FlipHorizontal, ScanFace, Eye } from "lucide-react";
+import { Camera, Loader2, Download, Search, X, ScanFace, Eye, Sparkles } from "lucide-react";
 import Webcam from "react-webcam";
 import { resizeImage } from "@/utils/image";
-
 
 interface GuestSearchProps {
     initialPhotos?: any[];
@@ -117,39 +114,56 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
     const showUploadUI = !searched && mode === 'search';
 
     return (
-        <div className="w-full max-w-6xl mx-auto space-y-12">
+        <div className="w-full max-w-6xl mx-auto space-y-12 animate-enter">
 
+            {/* Hero Section (Search Mode) */}
+            {mode === 'search' && !searched && (
+                <div className="text-center space-y-4 pt-10">
+                    <h1 className="text-5xl md:text-7xl font-bold tracking-tighter bg-clip-text text-transparent bg-gradient-to-br from-white via-white to-zinc-500">
+                        The Wedding<br />Gallery
+                    </h1>
+                    <p className="text-lg md:text-xl text-zinc-400 max-w-2xl mx-auto font-light">
+                        Experience the magic again. <br className="hidden md:block" />
+                        <span className="text-cyan-400 font-medium">Take a selfie</span> to instantly find every memory you're part of.
+                    </p>
+                </div>
+            )}
+
+            {/* Header for Shared/All Mode */}
             {mode !== 'search' && (
-                <div className="text-center space-y-2">
-                    <h2 className="text-2xl font-bold text-white">
-                        {mode === 'shared' ? "Shared Personal Album" : "Event Gallery"}
+                <div className="text-center space-y-2 pt-10">
+                    <h2 className="text-4xl font-bold text-white tracking-tight">
+                        {mode === 'shared' ? "Your Personal Album" : "Event Gallery"}
                     </h2>
-                    {mode === 'shared' && <p className="text-zinc-400">Here are the photos picked just for you.</p>}
+                    {mode === 'shared' && <p className="text-zinc-400">Curated memories, just for you.</p>}
                 </div>
             )}
 
+            {/* Scanning Overlay */}
             {loading && scannedImage && (
-                <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-md">
-                    <div className="relative w-64 h-64 rounded-full overflow-hidden border-4 border-cyan-500/50 shadow-[0_0_50px_rgba(6,182,212,0.5)]">
+                <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-md animate-in fade-in duration-500">
+                    <div className="relative w-64 h-64 rounded-full overflow-hidden border-4 border-cyan-500/50 shadow-[0_0_80px_rgba(6,182,212,0.4)]">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={scannedImage} alt="Scanning" className="w-full h-full object-cover opacity-50 grayscale" />
-                        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-cyan-400/50 to-transparent h-4 w-full animate-[scan_2s_ease-in-out_infinite]" />
-                        <div className="absolute inset-0 bg-[linear-gradient(rgba(6,182,212,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.2)_1px,transparent_1px)] bg-[size:20px_20px] opacity-30" />
+                        <img src={scannedImage} alt="Scanning" className="w-full h-full object-cover opacity-60 grayscale" />
+                        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-cyan-400/50 to-transparent h-4 w-full animate-[scan_1.5s_ease-in-out_infinite]" />
+                        <div className="absolute inset-0 bg-[linear-gradient(rgba(6,182,212,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.2)_1px,transparent_1px)] bg-[size:20px_20px] opacity-20" />
                     </div>
-                    <div className="mt-8 flex flex-col items-center gap-2">
-                        <div className="flex items-center gap-3 text-cyan-400 font-mono text-lg animate-pulse">
+                    <div className="mt-8 flex flex-col items-center gap-3">
+                        <div className="flex items-center gap-3 text-cyan-400 font-mono text-xl tracking-widest animate-pulse">
                             <ScanFace className="w-6 h-6" />
-                            SCANNING FACE ID...
+                            ANALYZING...
                         </div>
-                        <p className="text-zinc-500 text-sm">Matching against thousands of memories</p>
+                        <p className="text-zinc-500 text-sm">Matching against thousands of moments</p>
                     </div>
                 </div>
             )}
 
+            {/* Search Input Area */}
             {showUploadUI && (
-                <div className="flex flex-col items-center justify-center space-y-6">
+                <div className="flex flex-col items-center justify-center space-y-8 bg-black/50 p-8 rounded-3xl border border-white/5 backdrop-blur-sm max-w-2xl mx-auto shadow-2xl shadow-black/50">
+
                     {cameraOpen ? (
-                        <div className="relative w-full max-w-md aspect-video bg-black rounded-xl overflow-hidden shadow-2xl">
+                        <div className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl ring-1 ring-zinc-800">
                             <Webcam
                                 ref={webcamRef}
                                 audio={false}
@@ -159,29 +173,35 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
                             />
                             <button
                                 onClick={() => setCameraOpen(false)}
-                                className="absolute top-4 right-4 bg-black/50 text-white p-2 rounded-full backdrop-blur-md"
+                                className="absolute top-4 right-4 bg-black/50 text-white p-2.5 rounded-full backdrop-blur-md hover:bg-black/70 transition-all border border-white/10"
                             >
                                 <X className="w-5 h-5" />
                             </button>
-                            <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+                            <div className="absolute bottom-6 left-0 right-0 flex justify-center">
                                 <button
                                     onClick={handleCapture}
-                                    className="bg-white rounded-full p-4 shadow-xl active:scale-95 transition"
+                                    className="bg-white rounded-full p-1 shadow-2xl hover:scale-105 transition-transform"
                                 >
-                                    <div className="w-6 h-6 rounded-full border-2 border-black" />
+                                    <div className="w-16 h-16 rounded-full border-4 border-black bg-white" />
                                 </button>
                             </div>
                         </div>
                     ) : (
-                        <div className="flex flex-col items-center gap-6">
-                            <div className="relative group">
+                        <div className="flex flex-col md:flex-row gap-6 w-full justify-center items-stretch">
+                            {/* Upload Area */}
+                            <div className="relative group flex-1">
                                 <div className={`
-                    w-32 h-32 rounded-full bg-zinc-900 border-2 border-dashed border-zinc-700 
-                    flex items-center justify-center overflow-hidden
-                    group-hover:border-cyan-500
-                    `}>
-                                    <Camera className="w-10 h-10 text-zinc-500 group-hover:text-cyan-400 transition" />
+                                    h-40 md:h-48 rounded-2xl bg-zinc-900/50 border-2 border-dashed border-zinc-700 
+                                    flex flex-col items-center justify-center gap-4
+                                    group-hover:border-cyan-500/50 group-hover:bg-zinc-900
+                                    transition-all duration-300 cursor-pointer
+                                `}>
+                                    <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                        <Sparkles className="w-6 h-6 text-zinc-400 group-hover:text-cyan-400" />
+                                    </div>
+                                    <span className="text-zinc-400 group-hover:text-white font-medium">Upload a Selfie</span>
                                 </div>
+
                                 <input
                                     type="file"
                                     accept="image/*"
@@ -189,66 +209,81 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
                                     onChange={handleUpload}
                                     disabled={loading || !modelLoaded}
                                 />
-                                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-cyan-600 text-white text-xs px-3 py-1 rounded-full font-bold shadow-lg whitespace-nowrap">
-                                    UPLOAD FILE
-                                </div>
                             </div>
-                            <div className="text-zinc-500 text-sm">OR</div>
+
+                            <div className="flex items-center justify-center text-zinc-600 font-mono text-sm">OR</div>
+
+                            {/* Camera Button */}
                             <button
                                 onClick={() => setCameraOpen(true)}
                                 disabled={!modelLoaded || loading}
-                                className="bg-zinc-800 hover:bg-zinc-700 text-white py-3 px-6 rounded-lg font-medium flex items-center gap-2 transition disabled:opacity-50"
+                                className="flex-1 h-40 md:h-48 rounded-2xl bg-gradient-to-br from-cyan-600/10 to-blue-600/10 border border-cyan-500/20 hover:border-cyan-500/50 hover:bg-cyan-500/10 transition-all flex flex-col items-center justify-center gap-4 group"
                             >
-                                <Camera className="w-5 h-5" />
-                                Open Camera
+                                <div className="w-12 h-12 rounded-full bg-cyan-500/20 flex items-center justify-center group-hover:scale-110 transition-transform border border-cyan-500/20">
+                                    <Camera className="w-6 h-6 text-cyan-400" />
+                                </div>
+                                <span className="text-cyan-100 font-medium">Open Camera</span>
                             </button>
                         </div>
                     )}
-                    <p className="text-zinc-500 text-center max-w-sm">
-                        {!modelLoaded ? "Loading AI..." : "Take or upload a selfie. We'll find every photo you're in."}
-                    </p>
+
+                    <div className="flex items-center gap-2 text-zinc-500 text-sm bg-black/40 px-4 py-2 rounded-full border border-white/5">
+                        <div className={`w-2 h-2 rounded-full ${modelLoaded ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-yellow-500 animate-pulse'}`} />
+                        {modelLoaded ? "AI Face Engine Ready" : "Initializing Neural Networks..."}
+                    </div>
                 </div>
             )}
 
+            {/* Results Grid */}
             {searched && (
-                <div className="space-y-4">
+                <div className="space-y-8">
                     {mode === 'search' && (
-                        <h3 className="text-xl font-bold flex items-center gap-2 text-white">
-                            <Search className="text-cyan-400" /> Found {photos.length} Photos
-                        </h3>
+                        <div className="text-center space-y-2">
+                            <h3 className="text-2xl font-bold text-white flex items-center justify-center gap-3">
+                                <Sparkles className="text-cyan-400" />
+                                We found {photos.length} memories
+                            </h3>
+                            {photos.length > 0 && <p className="text-zinc-400">Tap any photo to view in full quality.</p>}
+                        </div>
                     )}
 
                     {photos.length === 0 && !loading ? (
-                        <div className="text-center py-12 text-zinc-500 bg-zinc-900/50 rounded-xl">
-                            No matches found.
+                        <div className="text-center py-20 bg-zinc-900/30 border border-zinc-800 rounded-3xl backdrop-blur-sm max-w-lg mx-auto">
+                            <h4 className="text-xl font-medium text-zinc-300">No matches found</h4>
+                            <p className="text-zinc-500 mt-2">Try uploading a clear photo with good lighting.</p>
+                            <button onClick={() => window.location.reload()} className="mt-6 text-cyan-400 hover:text-cyan-300 hover:underline">
+                                Try Again
+                            </button>
                         </div>
                     ) : (
-                        <div className="columns-1 md:columns-2 lg:columns-3 xl:columns-4 gap-4 space-y-4">
+                        <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4 space-y-4 px-4">
                             {photos.map((photo) => (
-                                <div key={photo.id} className="relative group break-inside-avoid">
+                                <div key={photo.id} className="relative group break-inside-avoid rounded-xl overflow-hidden shadow-lg cursor-zoom-in" onClick={() => setSelectedPhoto(photo.url)}>
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img
                                         src={photo.url}
                                         alt="Memory"
-                                        className="w-full rounded-lg bg-zinc-900 border border-zinc-800 group-hover:border-cyan-500/50 transition-all cursor-pointer"
-                                        onClick={() => setSelectedPhoto(photo.url)}
+                                        className="w-full bg-zinc-900 hover:scale-[1.02] transition-transform duration-500"
                                     />
-                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 rounded-lg backdrop-blur-sm">
-                                        <button
-                                            onClick={() => setSelectedPhoto(photo.url)}
-                                            className="bg-white text-black p-2 rounded-full hover:scale-110 transition-transform"
-                                            title="View Full Size"
-                                        >
-                                            <Eye className="w-5 h-5" />
-                                        </button>
-                                        <a
-                                            href={photo.url}
-                                            download={`photo-${photo.id}.jpg`}
-                                            className="bg-white text-black p-2 rounded-full hover:scale-110 transition-transform"
-                                            title="Download"
-                                        >
-                                            <Download className="w-5 h-5" />
-                                        </a>
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center p-4">
+                                        <div className="flex gap-3 translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setSelectedPhoto(photo.url); }}
+                                                className="bg-white/10 backdrop-blur-md text-white p-2.5 rounded-full hover:bg-white/20 transition-colors border border-white/10"
+                                                title="View"
+                                            >
+                                                <Eye className="w-5 h-5" />
+                                            </button>
+                                            <a
+                                                href={photo.url}
+                                                download={`photo-${photo.id}.jpg`}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="bg-white text-black p-2.5 rounded-full hover:bg-cyan-50 transition-colors shadow-lg hover:shadow-cyan-500/25"
+                                                title="Download"
+                                            >
+                                                <Download className="w-5 h-5" />
+                                            </a>
+                                        </div>
                                     </div>
                                 </div>
                             ))}
@@ -267,18 +302,18 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
 
             {/* View Photo Modal */}
             {selectedPhoto && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 p-4 animate-in fade-in duration-200" onClick={() => setSelectedPhoto(null)}>
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 backdrop-blur-xl p-4 animate-in fade-in duration-300" onClick={() => setSelectedPhoto(null)}>
                     <button
-                        className="absolute top-4 right-4 text-white hover:text-cyan-400 p-2 z-50"
+                        className="absolute top-6 right-6 text-white/50 hover:text-white p-2 z-50 transition-colors bg-white/10 rounded-full hover:bg-white/20"
                         onClick={() => setSelectedPhoto(null)}
                     >
-                        <X className="w-8 h-8" />
+                        <X className="w-6 h-6" />
                     </button>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                         src={selectedPhoto}
                         alt="Full size memory"
-                        className="max-w-full max-h-[90vh] rounded-lg shadow-2xl border border-zinc-800 object-contain"
+                        className="max-w-full max-h-[90vh] rounded-lg shadow-2xl object-contain animate-in zoom-in-95 duration-300"
                         onClick={(e) => e.stopPropagation()}
                     />
                 </div>

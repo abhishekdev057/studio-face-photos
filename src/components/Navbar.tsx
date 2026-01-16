@@ -13,8 +13,8 @@ export default async function Navbar() {
     return (
         <nav className="border-b border-zinc-800 bg-zinc-950/50 backdrop-blur sticky top-0 z-50">
             <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-                <Link href="/" className="font-bold text-xl bg-clip-text text-transparent bg-gradient-to-r from-zinc-200 to-zinc-500">
-                    Wedding Moments
+                <Link href="/" className="font-bold text-2xl tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 transition-all">
+                    Aura
                 </Link>
 
                 <div className="flex items-center gap-4">
