@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect, useRef, useCallback } from "react";
 import { searchPhotos } from "@/actions/search";
 import * as faceapi from "face-api.js";
