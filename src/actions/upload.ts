@@ -62,14 +62,16 @@ export async function uploadPhoto(formData: FormData) {
                 try {
                     // Find closest match using pgvector operator
                     const matches = await prisma.$queryRaw<any[]>`
-                    SELECT "personId", "embedding" <=> ${vectorString}::vector as distance 
+                    SELECT "personId", "embedding" <-> ${vectorString}::vector as distance 
                     FROM "Face"
                     WHERE "personId" IS NOT NULL
                     ORDER BY distance ASC
                     LIMIT 1
                   `;
 
-                    if (matches.length > 0 && matches[0].distance < 0.45) {
+                    // face-api.js recommends Euclidean distance of 0.6. We use 0.5 to be safer (fewer false positives).
+                    if (matches.length > 0 && matches[0].distance < 0.5) {
+
                         personId = matches[0].personId;
                     } else {
                         // Create new person

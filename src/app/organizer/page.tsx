@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import UploadForm from "@/components/UploadForm";
 import PersonCard from "@/components/PersonCard";
+import ResetButton from "@/components/ResetButton";
 import Link from "next/link";
-
-import { Share2, User } from "lucide-react";
+import { User } from "lucide-react";
 
 export const dynamic = 'force-dynamic';
 
@@ -27,20 +27,22 @@ export default async function OrganizerPage() {
         });
 
     } catch (e) {
-        console.error("DB Error (Setup likely incomplete or network block):", e);
+        console.error("DB Error:", e);
     }
 
     return (
         <div className="min-h-screen bg-background text-white p-8">
-            <header className="mb-8 flex justify-between items-center border-b border-zinc-800 pb-4">
+            <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
                 <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-600">
                     Organizer Dashboard
                 </h1>
-                <div className="space-x-4">
+                <div className="flex items-center gap-4">
+                    <ResetButton />
                     <Link href="/" className="text-zinc-400 hover:text-white transition-colors">Home</Link>
                     <Link href="/guest" className="text-zinc-400 hover:text-white transition-colors">Guest View (Test)</Link>
                 </div>
             </header>
+
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
                 <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-xl hover:border-zinc-700 transition">

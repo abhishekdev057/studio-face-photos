@@ -15,10 +15,11 @@ export async function searchPhotos(descriptor: number[]) {
 
         // Find distinct photos containing a face close to the descriptor
         const photos = await prisma.$queryRaw<any[]>`
-       SELECT DISTINCT p.id, p.url, (f.embedding <=> ${vectorString}::vector) as distance
+       SELECT DISTINCT p.id, p.url, (f.embedding <-> ${vectorString}::vector) as distance
        FROM "Photo" p
        JOIN "Face" f ON f."photoId" = p.id
-       WHERE (f.embedding <=> ${vectorString}::vector) < 0.45
+       WHERE (f.embedding <-> ${vectorString}::vector) < 0.5
+
        ORDER BY distance ASC
        LIMIT 50
      `;
