@@ -143,11 +143,11 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
 
             {/* Scanning Overlay */}
             {loading && scannedImage && (
-                <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-md animate-in fade-in duration-500">
+                <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/95 backdrop-blur-md animate-in fade-in duration-500">
                     <div className="relative w-64 h-64 rounded-full overflow-hidden border-4 border-cyan-500/50 shadow-[0_0_80px_rgba(6,182,212,0.4)]">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={scannedImage} alt="Scanning" className="w-full h-full object-cover opacity-60 grayscale" />
-                        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-cyan-400/50 to-transparent h-4 w-full animate-[scan_1.5s_ease-in-out_infinite]" />
+                        <div className="absolute left-0 right-0 bg-gradient-to-b from-transparent via-cyan-400/50 to-transparent h-4 animate-[scan_1.5s_ease-in-out_infinite]" />
                         <div className="absolute inset-0 bg-[linear-gradient(rgba(6,182,212,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.2)_1px,transparent_1px)] bg-[size:20px_20px] opacity-20" />
                     </div>
                     <div className="mt-8 flex flex-col items-center gap-3">
