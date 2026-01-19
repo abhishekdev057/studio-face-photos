@@ -284,7 +284,7 @@ export default function UploadForm() {
                                     className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-300 relative"
                                     style={{ width: `${(stats.uploaded + stats.skipped) / stats.total * 100}%` }}
                                 >
-                                    <div className="absolute inset-0 bg-white/20 animate-[scan_1s_linear_infinite]" />
+                                    <div className="absolute inset-0 bg-white/20 animate-shine" />
                                 </div>
                             </div>
                         )}

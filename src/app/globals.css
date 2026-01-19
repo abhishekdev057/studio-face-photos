@@ -63,20 +63,24 @@
   }
 }
 
-@keyframes scan {
+@keyframes scan-vertical {
   0% {
     top: 0%;
-    opacity: 0.8;
   }
-
   50% {
     top: 100%;
-    opacity: 0.8;
   }
-
   100% {
     top: 0%;
-    opacity: 0.8;
+  }
+}
+
+@keyframes shine {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
   }
 }
 
@@ -88,6 +92,15 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Utilities */
+.animate-scan-vertical {
+  animation: scan-vertical 2s ease-in-out infinite;
+}
+
+.animate-shine {
+  animation: shine 1.5s linear infinite;
 }
 
 /* Utilities */
