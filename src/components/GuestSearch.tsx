@@ -21,6 +21,7 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
     const [scannedImage, setScannedImage] = useState<string | null>(null);
     const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
     const webcamRef = useRef<Webcam>(null);
+    const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
     useEffect(() => {
         if (mode === 'search') {
@@ -114,6 +115,30 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
     }, [webcamRef]);
 
     const showUploadUI = !searched && mode === 'search';
+
+    const downloadImage = async (url: string, filename: string, id: string) => {
+        setDownloadingId(id);
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Network response was not ok');
+            const blob = await response.blob();
+            const objectUrl = URL.createObjectURL(blob);
+
+            const link = document.createElement('a');
+            link.href = objectUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(objectUrl);
+        } catch (error) {
+            console.error('Download failed:', error);
+            // Fallback to opening in new tab
+            window.open(url, '_blank');
+        } finally {
+            setDownloadingId(null);
+        }
+    };
 
     return (
         <div className="w-full max-w-6xl mx-auto space-y-12 animate-enter">
@@ -276,15 +301,21 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
                                             >
                                                 <Eye className="w-5 h-5" />
                                             </button>
-                                            <a
-                                                href={photo.url}
-                                                download={`photo-${photo.id}.jpg`}
-                                                onClick={(e) => e.stopPropagation()}
-                                                className="bg-white text-black p-2.5 rounded-full hover:bg-cyan-50 transition-colors shadow-lg hover:shadow-cyan-500/25"
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    downloadImage(photo.url, `photo-${photo.id}.jpg`, photo.id);
+                                                }}
+                                                disabled={downloadingId === photo.id}
+                                                className="bg-white text-black p-2.5 rounded-full hover:bg-cyan-50 transition-colors shadow-lg hover:shadow-cyan-500/25 disabled:opacity-50"
                                                 title="Download"
                                             >
-                                                <Download className="w-5 h-5" />
-                                            </a>
+                                                {downloadingId === photo.id ? (
+                                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                                ) : (
+                                                    <Download className="w-5 h-5" />
+                                                )}
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
