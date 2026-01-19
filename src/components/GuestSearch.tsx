@@ -44,7 +44,7 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
 
     const processImage = async (imageSrc: string | Blob) => {
         setLoading(true);
-        setSearched(true);
+        // Do NOT set searched here immediately
         setCameraOpen(false);
 
         if (typeof imageSrc === 'string') {
@@ -81,6 +81,7 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
                     return true;
                 });
                 setPhotos(unique);
+                setSearched(true); // Set searched only on success
             } else {
                 alert("Search error");
             }
@@ -168,19 +169,48 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
 
             {/* Scanning Overlay */}
             {loading && scannedImage && (
-                <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/95 backdrop-blur-md animate-in fade-in duration-500">
-                    <div className="relative w-64 h-64 rounded-full overflow-hidden border-4 border-cyan-500/50 shadow-[0_0_80px_rgba(6,182,212,0.4)]">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={scannedImage} alt="Scanning" className="w-full h-full object-cover opacity-60 grayscale" />
-                        <div className="absolute left-0 right-0 bg-gradient-to-b from-transparent via-cyan-400/50 to-transparent h-4 animate-scan-vertical" />
-                        <div className="absolute inset-0 bg-[linear-gradient(rgba(6,182,212,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.2)_1px,transparent_1px)] bg-[size:20px_20px] opacity-20" />
-                    </div>
-                    <div className="mt-8 flex flex-col items-center gap-3">
-                        <div className="flex items-center gap-3 text-cyan-400 font-mono text-xl tracking-widest animate-pulse">
-                            <ScanFace className="w-6 h-6" />
-                            ANALYZING...
+                <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black backdrop-blur-3xl animate-in fade-in duration-300">
+                    <div className="relative">
+                        {/* Scanner Frame */}
+                        <div className="relative w-80 h-80 rounded-2xl overflow-hidden border-2 border-cyan-500/30 shadow-[0_0_100px_rgba(6,182,212,0.2)] bg-zinc-900">
+                            {/* Target Image */}
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={scannedImage} alt="Scanning" className="w-full h-full object-cover opacity-60" />
+
+                            {/* Grid Overlay */}
+                            <div className="absolute inset-0 bg-[linear-gradient(rgba(6,182,212,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.1)_1px,transparent_1px)] bg-[size:40px_40px]" />
+
+                            {/* Moving Scan Line */}
+                            <div className="absolute left-0 right-0 h-0.5 bg-cyan-400 shadow-[0_0_20px_rgba(6,182,212,1)] animate-scan-vertical" />
+
+                            {/* Scanning Radar/Ripple Effect */}
+                            <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/10 via-transparent to-transparent animate-scan-vertical opacity-30" />
                         </div>
-                        <p className="text-zinc-500 text-sm">Matching against thousands of moments</p>
+
+                        {/* Corner Brackets */}
+                        <div className="absolute -inset-6 pointer-events-none">
+                            <div className="absolute top-0 left-0 w-12 h-12 border-t-2 border-l-2 border-cyan-500 rounded-tl-3xl opacity-80" />
+                            <div className="absolute top-0 right-0 w-12 h-12 border-t-2 border-r-2 border-cyan-500 rounded-tr-3xl opacity-80" />
+                            <div className="absolute bottom-0 left-0 w-12 h-12 border-b-2 border-l-2 border-cyan-500 rounded-bl-3xl opacity-80" />
+                            <div className="absolute bottom-0 right-0 w-12 h-12 border-b-2 border-r-2 border-cyan-500 rounded-br-3xl opacity-80" />
+                        </div>
+                    </div>
+
+                    <div className="mt-12 flex flex-col items-center gap-6">
+                        <div className="flex items-center gap-4">
+                            <Loader2 className="w-6 h-6 text-cyan-400 animate-spin" />
+                            <span className="text-cyan-400 font-mono text-xl tracking-[0.3em] font-medium animate-pulse shadow-cyan-500/50">
+                                ANALYZING
+                            </span>
+                        </div>
+                        <div className="flex flex-col items-center gap-2">
+                            <p className="text-zinc-400 text-sm font-light">Matching biometric features...</p>
+                            <div className="flex gap-1">
+                                <div className="w-1 h-1 bg-cyan-500 rounded-full animate-bounce delay-0" />
+                                <div className="w-1 h-1 bg-cyan-500 rounded-full animate-bounce delay-100" />
+                                <div className="w-1 h-1 bg-cyan-500 rounded-full animate-bounce delay-200" />
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
