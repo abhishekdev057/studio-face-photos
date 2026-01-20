@@ -22,6 +22,8 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
     const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
     const webcamRef = useRef<Webcam>(null);
     const [downloadingId, setDownloadingId] = useState<string | null>(null);
+    const [detectedFaces, setDetectedFaces] = useState<any[]>([]);
+    const [isSelectingFace, setIsSelectingFace] = useState(false);
 
     useEffect(() => {
         if (mode === 'search') {
@@ -42,10 +44,39 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
         }
     }, [mode]);
 
+    const performSearch = async (descriptor: number[]) => {
+        setLoading(true);
+        setIsSelectingFace(false);
+        setDetectedFaces([]);
+
+        try {
+            const res = await searchPhotos(descriptor);
+            if (res.success) {
+                const existingIds = new Set();
+                const unique = (res.photos || []).filter((p: any) => {
+                    if (existingIds.has(p.id)) return false;
+                    existingIds.add(p.id);
+                    return true;
+                });
+                setPhotos(unique);
+                setSearched(true); // Set searched only on success
+            } else {
+                alert("Search error");
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Error processing image");
+        } finally {
+            setLoading(false);
+            setScannedImage(null);
+        }
+    };
+
     const processImage = async (imageSrc: string | Blob) => {
         setLoading(true);
-        // Do NOT set searched here immediately
         setCameraOpen(false);
+        setIsSelectingFace(false);
+        setDetectedFaces([]);
 
         if (typeof imageSrc === 'string') {
             setScannedImage(imageSrc);
@@ -70,25 +101,33 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
                 return;
             }
 
-            const descriptor = Array.from(detections[0].descriptor);
+            // Sort by size (largest first)
+            detections.sort((a, b) => b.detection.box.area - a.detection.box.area);
 
-            const res = await searchPhotos(descriptor);
-            if (res.success) {
-                const existingIds = new Set();
-                const unique = (res.photos || []).filter((p: any) => {
-                    if (existingIds.has(p.id)) return false;
-                    existingIds.add(p.id);
-                    return true;
-                });
-                setPhotos(unique);
-                setSearched(true); // Set searched only on success
+            if (detections.length === 1) {
+                const descriptor = Array.from(detections[0].descriptor);
+                await performSearch(descriptor);
             } else {
-                alert("Search error");
+                // Multiple faces found
+                const faces = detections.map((d, i) => ({
+                    id: i.toString(),
+                    descriptor: Array.from(d.descriptor),
+                    box: {
+                        left: `${(d.detection.box.x / img.width) * 100}%`,
+                        top: `${(d.detection.box.y / img.height) * 100}%`,
+                        width: `${(d.detection.box.width / img.width) * 100}%`,
+                        height: `${(d.detection.box.height / img.height) * 100}%`
+                    }
+                }));
+                setDetectedFaces(faces);
+                setIsSelectingFace(true);
+                setLoading(false);
+                // Keep scannedImage for the selection UI
             }
+
         } catch (err) {
             console.error(err);
             alert("Error processing image");
-        } finally {
             setLoading(false);
             setScannedImage(null);
         }
@@ -115,7 +154,7 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
         }
     }, [webcamRef]);
 
-    const showUploadUI = !searched && mode === 'search';
+    const showUploadUI = !searched && mode === 'search' && !isSelectingFace;
 
     const downloadImage = async (url: string, filename: string, id: string) => {
         setDownloadingId(id);
@@ -212,6 +251,49 @@ export default function GuestSearch({ initialPhotos = [], mode = 'search' }: Gue
                             </div>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* Face Selection UI */}
+            {isSelectingFace && scannedImage && (
+                <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/95 backdrop-blur-xl animate-in fade-in duration-300 p-4">
+                    <h2 className="text-2xl font-bold text-white mb-6 text-center">
+                        Multiple Faces Detected
+                        <span className="text-zinc-400 block text-base font-normal mt-2">Tap your face to search</span>
+                    </h2>
+
+                    <div className="relative inline-block max-w-full max-h-[70vh] shadow-2xl rounded-2xl overflow-hidden ring-1 ring-white/10">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={scannedImage} alt="Select your face" className="block max-w-full max-h-[70vh] object-contain" />
+
+                        {detectedFaces.map((face) => (
+                            <button
+                                key={face.id}
+                                onClick={() => performSearch(face.descriptor)}
+                                style={{
+                                    left: face.box.left,
+                                    top: face.box.top,
+                                    width: face.box.width,
+                                    height: face.box.height
+                                }}
+                                className="absolute border-2 border-cyan-400 bg-cyan-400/20 hover:bg-cyan-400/40 hover:scale-105 transition-all duration-200 cursor-pointer rounded-lg shadow-[0_0_20px_rgba(34,211,238,0.5)] z-10 group"
+                            >
+                                <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-black/80 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                                    That's me!
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+
+                    <button
+                        onClick={() => {
+                            setIsSelectingFace(false);
+                            setScannedImage(null);
+                        }}
+                        className="mt-8 text-zinc-500 hover:text-white transition-colors flex items-center gap-2"
+                    >
+                        <X className="w-4 h-4" /> Cancel
+                    </button>
                 </div>
             )}
 

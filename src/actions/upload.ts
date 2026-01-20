@@ -103,7 +103,7 @@ export async function uploadPhoto(formData: FormData) {
                     LIMIT 1
                   `;
 
-                    if (matches.length > 0 && matches[0].distance < 0.5) {
+                    if (matches.length > 0 && matches[0].distance < 0.45) {
                         personId = matches[0].personId;
                     } else {
                         const newPerson = await prisma.person.create({
