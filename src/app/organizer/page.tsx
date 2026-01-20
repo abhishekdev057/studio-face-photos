@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import UploadForm from "@/components/UploadForm";
 import PersonCard from "@/components/PersonCard";
 import ResetButton from "@/components/ResetButton";
+import PhotoGrid from "@/components/PhotoGrid";
 import Link from "next/link";
 import { User, Image as ImageIcon, Sparkles, LayoutGrid } from "lucide-react";
 
@@ -10,21 +11,31 @@ export const dynamic = 'force-dynamic';
 export default async function OrganizerPage() {
     let stats = { photos: 0, people: 0 };
     let people: any[] = [];
+    let allPhotos: any[] = [];
 
     try {
         stats.photos = await prisma.photo.count();
         stats.people = await prisma.person.count();
 
-        people = await prisma.person.findMany({
-            take: 50,
-            orderBy: { createdAt: 'desc' },
-            include: {
-                faces: {
-                    take: 1,
-                    include: { photo: true }
+        const [fetchedPeople, fetchedPhotos] = await Promise.all([
+            prisma.person.findMany({
+                take: 50,
+                orderBy: { createdAt: 'desc' },
+                include: {
+                    faces: {
+                        take: 1,
+                        include: { photo: true }
+                    }
                 }
-            }
-        });
+            }),
+            prisma.photo.findMany({
+                orderBy: { createdAt: 'desc' },
+                take: 500 // Limit for performance, maybe implement pagination later
+            })
+        ]);
+
+        people = fetchedPeople;
+        allPhotos = fetchedPhotos;
 
     } catch (e) {
         console.error("DB Error:", e);
@@ -82,36 +93,44 @@ export default async function OrganizerPage() {
                     </div>
                 </div>
 
-                {/* Right: Detected People */}
-                <div className="lg:col-span-8 space-y-6">
-                    <div className="flex items-center justify-between">
-                        <h3 className="text-xl font-bold flex items-center gap-2">
-                            <LayoutGrid className="text-cyan-400 w-5 h-5" />
-                            Recognized Guests
-                        </h3>
-                        <span className="text-xs text-zinc-500 bg-zinc-900 px-2 py-1 rounded border border-zinc-800">
-                            Recent Activity
-                        </span>
+                {/* Right: Detected People & All Photos */}
+                <div className="lg:col-span-8 space-y-12">
+                    {/* Recognized People Section */}
+                    <div className="space-y-6">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-xl font-bold flex items-center gap-2">
+                                <LayoutGrid className="text-cyan-400 w-5 h-5" />
+                                Recognized Guests
+                            </h3>
+                            <span className="text-xs text-zinc-500 bg-zinc-900 px-2 py-1 rounded border border-zinc-800">
+                                Recent Activity
+                            </span>
+                        </div>
+
+
+                        {people.length === 0 ? (
+                            <div className="glass-panel p-12 rounded-2xl border-dashed border-2 border-zinc-800 flex flex-col items-center text-center space-y-4">
+                                <div className="w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center">
+                                    <User className="w-8 h-8 text-zinc-600" />
+                                </div>
+                                <div>
+                                    <h4 className="text-lg font-semibold text-zinc-300">No Guests Found Yet</h4>
+                                    <p className="text-zinc-500 max-w-xs mx-auto mt-2">Upload photos from your event. Our AI will automatically identify and group recurring faces here.</p>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                                {people.map(person => (
+                                    <PersonCard key={person.id} person={person} />
+                                ))}
+                            </div>
+                        )}
                     </div>
 
-
-                    {people.length === 0 ? (
-                        <div className="glass-panel p-12 rounded-2xl border-dashed border-2 border-zinc-800 flex flex-col items-center text-center space-y-4">
-                            <div className="w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center">
-                                <User className="w-8 h-8 text-zinc-600" />
-                            </div>
-                            <div>
-                                <h4 className="text-lg font-semibold text-zinc-300">No Guests Found Yet</h4>
-                                <p className="text-zinc-500 max-w-xs mx-auto mt-2">Upload photos from your event. Our AI will automatically identify and group recurring faces here.</p>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                            {people.map(person => (
-                                <PersonCard key={person.id} person={person} />
-                            ))}
-                        </div>
-                    )}
+                    {/* All Photos Section */}
+                    <div className="space-y-6 border-t border-zinc-800 pt-8">
+                        <PhotoGrid photos={allPhotos} />
+                    </div>
                 </div>
             </div>
         </div>
