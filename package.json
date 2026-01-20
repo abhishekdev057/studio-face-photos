@@ -12,6 +12,7 @@
     "@auth/prisma-adapter": "^2.11.1",
     "@prisma/client": "^5.10.2",
     "bcryptjs": "^3.0.3",
+    "blueimp-load-image": "^5.16.0",
     "cloudinary": "^2.9.0",
     "clsx": "^2.1.1",
     "face-api.js": "^0.22.2",
@@ -30,6 +31,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
+    "@types/blueimp-load-image": "^5.16.6",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

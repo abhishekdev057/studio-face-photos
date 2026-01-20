@@ -18,7 +18,7 @@ export async function searchPhotos(descriptor: number[]) {
        SELECT DISTINCT p.id, p.url, (f.embedding <-> ${vectorString}::vector) as distance
        FROM "Photo" p
        JOIN "Face" f ON f."photoId" = p.id
-       WHERE (f.embedding <-> ${vectorString}::vector) < 0.45
+       WHERE (f.embedding <-> ${vectorString}::vector) < 0.48
 
        ORDER BY distance ASC
        LIMIT 50
