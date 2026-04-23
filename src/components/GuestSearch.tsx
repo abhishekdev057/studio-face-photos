@@ -51,6 +51,10 @@ function pickPrimaryDetection<T extends DetectionCandidate>(detections: T[]) {
     : null;
 }
 
+function formatConfidenceLabel(confidence: string) {
+  return confidence.charAt(0).toUpperCase() + confidence.slice(1);
+}
+
 export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearchProps) {
   const webcamRef = useRef<Webcam>(null);
   const [modelLoaded, setModelLoaded] = useState(false);
@@ -62,6 +66,8 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [resultMessage, setResultMessage] = useState<string | null>(null);
+  const [resultConfidence, setResultConfidence] = useState<string | null>(null);
   const [status, setStatus] = useState("Loading face engine...");
 
   useEffect(() => {
@@ -101,6 +107,8 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
     setCameraOpen(false);
     setSearching(false);
     setErrorMessage(null);
+    setResultMessage(null);
+    setResultConfidence(null);
     setStatus(modelLoaded ? "Camera ready" : "Loading face engine...");
   };
 
@@ -118,6 +126,9 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
       success: boolean;
       error?: string;
       photos?: WorkspacePhoto[];
+      message?: string;
+      confidence?: string;
+      reason?: string;
     };
 
     try {
@@ -139,11 +150,15 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
     }
 
     setPhotos(result.photos || []);
+    setResultMessage(result.message ?? null);
+    setResultConfidence(result.confidence ?? null);
     setSearched(true);
   };
 
   const processImage = async (imageSource: string) => {
     setErrorMessage(null);
+    setResultMessage(null);
+    setResultConfidence(null);
     setSearching(true);
     setCameraOpen(false);
     setPreviewImage(imageSource);
@@ -193,7 +208,7 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
 
       setStatus("Matching your photos...");
       await performSearch(bestDescriptor);
-      setStatus("Match ready");
+      setStatus("Verified scan complete");
       matched = true;
     } catch (error) {
       console.error(error);
@@ -384,19 +399,27 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
                 {photos.length > 0 ? `${photos.length} photos found` : "No photos found"}
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                {photos.length > 0
-                  ? "Only your matched photos are shown."
-                  : "Try again with better light and one clear face."}
+                {resultMessage ||
+                  (photos.length > 0
+                    ? "Only verified photos are shown."
+                    : "Try again with better light and one clear face.")}
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={resetSearch}
-              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
-            >
-              Scan again
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              {resultConfidence && resultConfidence !== "none" && (
+                <div className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                  {formatConfidenceLabel(resultConfidence)} confidence
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={resetSearch}
+                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
+              >
+                Scan again
+              </button>
+            </div>
           </div>
 
           {photos.length > 0 ? (
@@ -445,6 +468,9 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
           ) : (
             <div className="rounded-[1.8rem] border border-dashed border-slate-200 bg-slate-50 px-6 py-14 text-center">
               <div className="text-lg font-semibold text-slate-950">Nothing matched yet</div>
+              <p className="mt-2 text-sm text-slate-500">
+                {resultMessage || "We only show photos after a high-confidence match."}
+              </p>
             </div>
           )}
         </section>

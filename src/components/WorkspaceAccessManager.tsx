@@ -63,7 +63,7 @@ export default function WorkspaceAccessManager({
   );
 
   return (
-    <div className="space-y-5 rounded-[1.9rem] border border-slate-200 bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.06)]">
+    <div className="surface-card space-y-5 p-5">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
@@ -77,8 +77,8 @@ export default function WorkspaceAccessManager({
         </div>
       </div>
 
-      <div className="rounded-[1.4rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-        Only invited organizers can open the dashboard. Guests should use the public selfie link.
+      <div className="surface-card-muted px-4 py-3 text-sm text-slate-500">
+        Only invited organizers can open the dashboard. Guests should use the private camera link.
       </div>
 
       <form
@@ -144,7 +144,7 @@ export default function WorkspaceAccessManager({
         {activeMembers.map((member) => (
           <div
             key={member.userId}
-            className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 md:flex-row md:items-center md:justify-between"
+            className="surface-card-muted flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between"
           >
             <div>
               <div className="text-sm font-medium text-slate-950">{member.name || member.email || "Unnamed user"}</div>
@@ -188,7 +188,7 @@ export default function WorkspaceAccessManager({
           {invites.map((invite) => (
             <div
               key={invite.id}
-              className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 md:flex-row md:items-center md:justify-between"
+              className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-3 md:flex-row md:items-center md:justify-between"
             >
               <div>
                 <div className="text-sm font-medium text-slate-950">{invite.email}</div>

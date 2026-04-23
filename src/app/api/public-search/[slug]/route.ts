@@ -27,7 +27,7 @@ export async function POST(
     const normalizedDescriptor = normalizeDescriptor(descriptor);
     if (!normalizedDescriptor) {
       return NextResponse.json(
-        { success: false, error: "A clear selfie face is required." },
+        { success: false, error: "A clear camera face is required." },
         { status: 400 },
       );
     }

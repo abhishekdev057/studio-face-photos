@@ -12,7 +12,7 @@ export default function WorkspaceCreateForm() {
 
   return (
     <form
-      className="space-y-4 rounded-[2rem] border border-slate-200 bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.06)]"
+      className="surface-card space-y-4 p-5"
       onSubmit={(event) => {
         event.preventDefault();
         const form = event.currentTarget;
@@ -36,7 +36,7 @@ export default function WorkspaceCreateForm() {
     >
       <div className="space-y-1">
         <div className="text-sm font-semibold text-slate-950">Create workspace</div>
-        <p className="text-sm text-slate-500">One workspace per event or client.</p>
+        <p className="text-sm text-slate-500">One workspace per event, client, or secure gallery.</p>
       </div>
 
       <label className="block space-y-2">

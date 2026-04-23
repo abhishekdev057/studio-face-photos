@@ -11,7 +11,7 @@ function GoogleButton() {
         <button
             type="submit"
             disabled={pending}
-            className="group flex w-full items-center justify-center gap-3 rounded-[1.35rem] border border-slate-200 bg-slate-50 px-4 py-4 font-semibold text-slate-950 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-70"
+            className="group flex w-full items-center justify-center gap-3 rounded-[1.35rem] border border-slate-200 bg-slate-50/90 px-4 py-4 font-semibold text-slate-950 shadow-[0_12px_28px_rgba(8,18,36,0.04)] transition hover:border-slate-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-70"
         >
             {pending ? (
                 <Loader2 className="w-5 h-5 animate-spin" />

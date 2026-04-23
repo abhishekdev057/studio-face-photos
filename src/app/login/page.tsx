@@ -11,20 +11,20 @@ export default async function LoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-[calc(100vh-72px)] items-center justify-center overflow-hidden bg-[#f5f7fb] px-4 py-10 text-slate-950">
-      <div className="relative z-10 grid w-full max-w-6xl gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-        <section className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_30px_80px_rgba(15,23,42,0.08)] md:p-10">
-          <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-slate-600">
+    <div className="page-shell relative flex min-h-[calc(100vh-78px)] items-center justify-center overflow-hidden py-10 text-slate-950">
+      <div className="relative z-10 grid w-full max-w-6xl gap-6 lg:grid-cols-[1.12fr_0.88fr]">
+        <section className="hero-surface p-8 md:p-10">
+          <div className="eyebrow-badge">
             <Camera className="h-3.5 w-3.5" />
             Private face workspace
           </div>
 
           <div className="mt-6 max-w-2xl space-y-5">
             <h1 className="text-4xl font-semibold tracking-tight md:text-6xl">
-              Private photo access, clean workspace control.
+              Enterprise photo access with strict private matching.
             </h1>
             <p className="text-base leading-7 text-slate-500 md:text-lg">
-              Upload originals. Match faces. Share one selfie link.
+              Keep every workspace separate, verify people conservatively, and share one secure camera-only access link.
             </p>
           </div>
 
@@ -42,11 +42,11 @@ export default async function LoginPage() {
               },
               {
                 icon: ScanFace,
-                title: "Selfie search",
-                body: "One face in, matched photos out.",
+                title: "Camera search",
+                body: "One scan in, matched photos out.",
               },
             ].map((feature) => (
-              <div key={feature.title} className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
+              <div key={feature.title} className="surface-card-muted p-5">
                 <feature.icon className="h-5 w-5 text-slate-700" />
                 <div className="mt-4 text-lg font-semibold">{feature.title}</div>
                 <p className="mt-2 text-sm leading-6 text-slate-500">{feature.body}</p>
@@ -55,20 +55,20 @@ export default async function LoginPage() {
           </div>
         </section>
 
-        <section className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+        <section className="surface-card p-8">
           <div className="space-y-3 text-center">
             <div className="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-950 text-white shadow-[0_18px_40px_rgba(15,23,42,0.12)]">
               <Camera className="h-8 w-8" />
             </div>
             <h2 className="text-3xl font-semibold">Sign in</h2>
             <p className="text-sm leading-6 text-slate-500">
-              Your workspace stays behind your account.
+              Your dashboard, team access, and guest links stay behind your account.
             </p>
           </div>
 
           <div className="mt-8 space-y-5">
             <GoogleLoginForm />
-            <div className="rounded-[1.4rem] border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+            <div className="surface-card-muted px-4 py-4 text-sm text-slate-500">
               Upload only the photos you have permission to process and share.
             </div>
           </div>

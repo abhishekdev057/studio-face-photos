@@ -2,11 +2,60 @@ export const FACE_DESCRIPTOR_LENGTH = 128;
 export const FACE_STRONG_MATCH_THRESHOLD = 0.38;
 export const FACE_DEFAULT_MATCH_THRESHOLD = 0.45;
 export const FACE_EXTENDED_MATCH_THRESHOLD = 0.49;
+export const FACE_PUBLIC_CANDIDATE_THRESHOLD = 0.58;
 export const FACE_UPLOAD_CANDIDATE_LIMIT = 80;
 export const FACE_SEARCH_CANDIDATE_LIMIT = 120;
 
 const PERSON_DECISIVE_MARGIN = 0.018;
 const PERSON_SOFT_MARGIN = 0.01;
+
+type MatchRules = {
+  strongThreshold: number;
+  stableThreshold: number;
+  stableAverageThreshold: number;
+  supportedThreshold: number;
+  supportedAverageThreshold: number;
+  minStrongSupport: number;
+  minSupportCount: number;
+  minUniquePhotoSupport: number;
+  softScoreMargin: number;
+  decisiveScoreMargin: number;
+  softDistanceMargin: number;
+  decisiveDistanceMargin: number;
+  competitiveThreshold: number;
+};
+
+const INDEX_MATCH_RULES: MatchRules = {
+  strongThreshold: 0.35,
+  stableThreshold: 0.39,
+  stableAverageThreshold: 0.425,
+  supportedThreshold: 0.425,
+  supportedAverageThreshold: 0.44,
+  minStrongSupport: 2,
+  minSupportCount: 3,
+  minUniquePhotoSupport: 2,
+  softScoreMargin: PERSON_SOFT_MARGIN,
+  decisiveScoreMargin: PERSON_DECISIVE_MARGIN,
+  softDistanceMargin: 0.012,
+  decisiveDistanceMargin: 0.02,
+  competitiveThreshold: 0.45,
+};
+
+const PUBLIC_MATCH_RULES: MatchRules = {
+  strongThreshold: 0.315,
+  stableThreshold: 0.355,
+  stableAverageThreshold: 0.39,
+  supportedThreshold: 0.38,
+  supportedAverageThreshold: 0.405,
+  minStrongSupport: 2,
+  minSupportCount: 3,
+  minUniquePhotoSupport: 2,
+  softScoreMargin: 0.02,
+  decisiveScoreMargin: 0.032,
+  softDistanceMargin: 0.018,
+  decisiveDistanceMargin: 0.028,
+  competitiveThreshold: 0.43,
+};
 
 export type FaceCandidateRow = {
   personId: string | null;
@@ -22,6 +71,18 @@ export type PersonMatchSummary = {
   strongSupportCount: number;
   uniquePhotoSupport: number;
   score: number;
+};
+
+export type MatchConfidence = "elite" | "verified" | "supported";
+
+export type MatchRejectionReason = "no-candidates" | "low-support" | "ambiguous";
+
+export type MatchDecision = {
+  match: PersonMatchSummary | null;
+  confidence?: MatchConfidence;
+  reason?: MatchRejectionReason;
+  summaries: PersonMatchSummary[];
+  runnerUp?: PersonMatchSummary;
 };
 
 export function normalizeDescriptor(descriptor: number[]) {
@@ -110,38 +171,103 @@ export function summarizePersonCandidates(
   );
 }
 
+function evaluateMatch(
+  summaries: PersonMatchSummary[],
+  rules: MatchRules,
+) {
+  const best = summaries[0];
+  const second = summaries[1];
+
+  if (!best) {
+    return {
+      match: null,
+      reason: "no-candidates",
+      summaries,
+    } satisfies MatchDecision;
+  }
+
+  const hasEliteConfidence =
+    best.bestDistance <= rules.strongThreshold &&
+    (best.averageTopDistance <= rules.stableAverageThreshold + 0.02 || best.uniquePhotoSupport >= 2);
+  const hasVerifiedConfidence =
+    best.bestDistance <= rules.stableThreshold &&
+    best.averageTopDistance <= rules.stableAverageThreshold &&
+    best.strongSupportCount >= rules.minStrongSupport &&
+    best.uniquePhotoSupport >= rules.minUniquePhotoSupport;
+  const hasSupportedConfidence =
+    best.bestDistance <= rules.supportedThreshold &&
+    best.averageTopDistance <= rules.supportedAverageThreshold &&
+    best.supportCount >= rules.minSupportCount &&
+    best.uniquePhotoSupport >= rules.minUniquePhotoSupport;
+
+  const confidence: MatchConfidence | null = hasEliteConfidence
+    ? "elite"
+    : hasVerifiedConfidence
+      ? "verified"
+      : hasSupportedConfidence
+        ? "supported"
+        : null;
+
+  if (!confidence) {
+    return {
+      match: null,
+      reason: "low-support",
+      summaries,
+      runnerUp: second,
+    } satisfies MatchDecision;
+  }
+
+  if (second && second.bestDistance <= rules.competitiveThreshold) {
+    const scoreMargin = second.score - best.score;
+    const distanceMargin = second.bestDistance - best.bestDistance;
+    const requiredScoreMargin =
+      confidence === "elite" ? rules.softScoreMargin : rules.decisiveScoreMargin;
+    const requiredDistanceMargin =
+      confidence === "elite" ? rules.softDistanceMargin : rules.decisiveDistanceMargin;
+    const runnerUpHasMaterialSupport =
+      second.strongSupportCount >= Math.max(1, rules.minStrongSupport - 1) ||
+      second.uniquePhotoSupport >= Math.max(1, rules.minUniquePhotoSupport - 1);
+
+    if (
+      runnerUpHasMaterialSupport &&
+      (scoreMargin < requiredScoreMargin || distanceMargin < requiredDistanceMargin)
+    ) {
+      return {
+        match: null,
+        reason: "ambiguous",
+        summaries,
+        runnerUp: second,
+      } satisfies MatchDecision;
+    }
+  }
+
+  return {
+    match: best,
+    confidence,
+    summaries,
+    runnerUp: second,
+  } satisfies MatchDecision;
+}
+
 export function chooseBestPersonMatch(
   candidates: FaceCandidateRow[],
   excludedPersonIds?: Set<string>,
 ) {
   const summaries = summarizePersonCandidates(candidates, excludedPersonIds);
-  const best = summaries[0];
-  const second = summaries[1];
+  return evaluateMatch(summaries, INDEX_MATCH_RULES).match;
+}
 
-  if (!best) {
-    return null;
-  }
+export function choosePublicPersonMatch(candidates: FaceCandidateRow[]) {
+  const summaries = summarizePersonCandidates(candidates);
+  return evaluateMatch(summaries, PUBLIC_MATCH_RULES);
+}
 
-  const scoreMargin = second ? second.score - best.score : Number.POSITIVE_INFINITY;
-  const isStrongSingle = best.bestDistance <= FACE_STRONG_MATCH_THRESHOLD;
-  const isStableSingle =
-    best.bestDistance <= FACE_DEFAULT_MATCH_THRESHOLD &&
-    best.averageTopDistance <= FACE_EXTENDED_MATCH_THRESHOLD;
-  const isSupportedCluster =
-    best.bestDistance <= FACE_EXTENDED_MATCH_THRESHOLD &&
-    best.strongSupportCount >= 2 &&
-    best.uniquePhotoSupport >= 2;
-
-  const hasConfidence = isStrongSingle || isStableSingle || isSupportedCluster;
-  if (!hasConfidence) {
-    return null;
-  }
-
-  const requiredMargin =
-    isStrongSingle || best.uniquePhotoSupport >= 2 ? PERSON_SOFT_MARGIN : PERSON_DECISIVE_MARGIN;
-  if (second && scoreMargin < requiredMargin && best.bestDistance > 0.355) {
-    return null;
-  }
-
-  return best;
+export function getPublicPhotoDistanceCutoff(summary: PersonMatchSummary) {
+  return Math.min(
+    0.44,
+    Math.max(
+      0.365,
+      Math.min(summary.averageTopDistance + 0.05, summary.bestDistance + 0.08),
+    ),
+  );
 }

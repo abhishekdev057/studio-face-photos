@@ -40,7 +40,7 @@ export default function PhotoGrid({ photos }: PhotoGridProps) {
   }, [lightboxIndex, photos.length]);
 
   return (
-    <section className="space-y-4 rounded-[1.9rem] border border-slate-200 bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.06)]">
+    <section className="surface-card space-y-4 p-5">
       <div className="flex items-center justify-between gap-4">
         <h3 className="flex items-center gap-2 text-xl font-semibold text-slate-950">
           <ImageIcon className="h-5 w-5 text-slate-500" />
@@ -52,7 +52,7 @@ export default function PhotoGrid({ photos }: PhotoGridProps) {
       </div>
 
       {photos.length === 0 ? (
-        <div className="rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 px-6 py-14 text-center text-sm text-slate-500">
+        <div className="surface-card-muted border-dashed px-6 py-14 text-center text-sm text-slate-500">
           No photos uploaded yet.
         </div>
       ) : (
@@ -61,7 +61,7 @@ export default function PhotoGrid({ photos }: PhotoGridProps) {
             <button
               key={photo.id}
               type="button"
-              className="group relative aspect-square overflow-hidden rounded-[1.4rem] border border-slate-200 bg-slate-50 text-left"
+              className="group relative aspect-square overflow-hidden rounded-[1.4rem] border border-slate-200 bg-slate-50/80 text-left"
               onClick={() => setLightboxIndex(index)}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}

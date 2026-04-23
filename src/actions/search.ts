@@ -2,9 +2,10 @@
 
 import { prisma } from "@/lib/prisma";
 import {
-  chooseBestPersonMatch,
-  FACE_EXTENDED_MATCH_THRESHOLD,
+  choosePublicPersonMatch,
+  FACE_PUBLIC_CANDIDATE_THRESHOLD,
   FACE_SEARCH_CANDIDATE_LIMIT,
+  getPublicPhotoDistanceCutoff,
   normalizeDescriptor,
   type FaceCandidateRow,
 } from "@/lib/faceMatching";
@@ -43,35 +44,54 @@ export async function searchPhotos(
       JOIN "Face" f ON f."photoId" = p.id
       WHERE p."eventId" = ${publicLink.eventId}
         AND f."personId" IS NOT NULL
-        AND (f.embedding <-> ${vectorString}::vector) < ${FACE_EXTENDED_MATCH_THRESHOLD}
+        AND (f.embedding <-> ${vectorString}::vector) < ${FACE_PUBLIC_CANDIDATE_THRESHOLD}
       ORDER BY distance ASC
       LIMIT ${FACE_SEARCH_CANDIDATE_LIMIT}
     `;
 
-    const bestMatch = chooseBestPersonMatch(candidates);
-    if (!bestMatch) {
-      return { success: true, photos: [], provider: "opencv-sface-local" };
+    const decision = choosePublicPersonMatch(candidates);
+    if (!decision.match) {
+      return {
+        success: true,
+        photos: [],
+        provider: "opencv-sface-local",
+        confidence: "none",
+        reason: decision.reason,
+        message:
+          decision.reason === "ambiguous"
+            ? "More than one close match was found, so nothing was shown."
+            : "No verified match was found in this workspace.",
+      };
     }
 
+    const photoDistanceCutoff = getPublicPhotoDistanceCutoff(decision.match);
     const photos = await prisma.$queryRaw<PersonPhotoRow[]>`
       SELECT p.id, p.url, p."faceCount", MIN(f.embedding <-> ${vectorString}::vector) AS distance
       FROM "Photo" p
       JOIN "Face" f ON f."photoId" = p.id
       WHERE p."eventId" = ${publicLink.eventId}
-        AND f."personId" = ${bestMatch.personId}
+        AND f."personId" = ${decision.match.personId}
       GROUP BY p.id, p.url, p."faceCount", p."createdAt"
       ORDER BY distance ASC, p."createdAt" DESC
       LIMIT 240
     `;
 
+    const safePhotos = photos.filter((photo) => photo.distance <= photoDistanceCutoff);
+
     return {
       success: true,
-      photos: photos.map((photo) => ({
+      photos: safePhotos.map((photo) => ({
         id: photo.id,
         url: photo.url,
         faceCount: photo.faceCount,
       })),
       provider: "opencv-sface-local",
+      confidence: decision.confidence,
+      reason: safePhotos.length > 0 ? undefined : "low-support",
+      message:
+        safePhotos.length > 0
+          ? "Verified match only"
+          : "A close match was found, but not enough photos passed the verification check.",
     };
   } catch (error) {
     console.error("Search failed", error);

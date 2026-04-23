@@ -132,15 +132,15 @@ export default function ReprocessWorkspaceButton({
   };
 
   return (
-    <div className="rounded-[1.9rem] border border-slate-200 bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.06)]">
+    <div className="surface-card p-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">
+          <div className="eyebrow-badge">
             <ShieldCheck className="h-3.5 w-3.5" />
             Model maintenance
           </div>
           <h3 className="mt-4 text-xl font-semibold text-slate-950">Reprocess workspace</h3>
-          <p className="mt-1 text-sm text-slate-500">Rebuild face groups after model upgrades.</p>
+          <p className="mt-1 text-sm text-slate-500">Rebuild face groups after model upgrades or stricter verification changes.</p>
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -176,17 +176,17 @@ export default function ReprocessWorkspaceButton({
       )}
 
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-[1.3rem] bg-slate-50 p-4">
+        <div className="surface-card-muted p-4">
           <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Done</div>
           <div className="mt-2 text-2xl font-semibold text-slate-950">
             {stats.processed}/{stats.total}
           </div>
         </div>
-        <div className="rounded-[1.3rem] bg-slate-50 p-4">
+        <div className="surface-card-muted p-4">
           <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Faces</div>
           <div className="mt-2 text-2xl font-semibold text-slate-950">{stats.faces}</div>
         </div>
-        <div className="rounded-[1.3rem] bg-slate-50 p-4">
+        <div className="surface-card-muted p-4">
           <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Failed</div>
           <div className="mt-2 text-2xl font-semibold text-slate-950">{stats.failed}</div>
         </div>

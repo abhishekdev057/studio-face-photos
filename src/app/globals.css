@@ -21,6 +21,10 @@
   --input: #dbe2ea;
   --ring: #94a3b8;
   --radius: 0.5rem;
+  --brand-ink: #081224;
+  --brand-blue: #36b6ff;
+  --brand-sky: #89ddff;
+  --surface-shadow: 0 28px 80px rgba(8, 18, 36, 0.08);
 }
 
 @theme inline {
@@ -136,6 +140,50 @@
   @apply border border-slate-200 bg-white/80 backdrop-blur-sm transition-all hover:border-slate-300 hover:bg-white active:scale-95;
 }
 
+.page-shell {
+  @apply mx-auto w-full max-w-7xl px-4 md:px-8;
+}
+
+.hero-surface {
+  @apply relative overflow-hidden rounded-[2.25rem] border border-white/90 bg-white/90 shadow-[0_34px_110px_rgba(8,18,36,0.1)] backdrop-blur-xl;
+}
+
+.surface-card {
+  @apply rounded-[1.75rem] border border-slate-200/90 bg-white/92 shadow-[0_22px_60px_rgba(8,18,36,0.06)] backdrop-blur-xl;
+}
+
+.surface-card-muted {
+  @apply rounded-[1.55rem] border border-slate-200 bg-slate-50/85 shadow-[0_16px_40px_rgba(8,18,36,0.04)];
+}
+
+.metric-card {
+  @apply rounded-[1.55rem] border border-slate-200 bg-white/95 p-5 shadow-[0_18px_45px_rgba(8,18,36,0.05)];
+}
+
+.eyebrow-badge {
+  @apply inline-flex items-center gap-2 rounded-full bg-slate-100/90 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-600;
+}
+
+.action-primary {
+  @apply inline-flex items-center justify-center gap-2 rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800;
+}
+
+.action-secondary {
+  @apply inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-950;
+}
+
+.ambient-grid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: linear-gradient(180deg, rgba(255, 255, 255, 0.88), transparent);
+  pointer-events: none;
+}
+
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
@@ -159,4 +207,8 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  background-image:
+    radial-gradient(circle at top left, rgba(54, 182, 255, 0.14), transparent 22%),
+    radial-gradient(circle at top right, rgba(137, 221, 255, 0.16), transparent 26%),
+    linear-gradient(180deg, #f9fbff 0%, #f4f7fb 48%, #eef3f9 100%);
 }
