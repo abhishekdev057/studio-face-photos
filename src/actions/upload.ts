@@ -1,139 +1,282 @@
-"use server"
+"use server";
 
-import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import crypto from "crypto";
-import { v2 as cloudinary } from 'cloudinary';
+import { v2 as cloudinary } from "cloudinary";
+import { prisma } from "@/lib/prisma";
+import { getUploadWorkspaceById } from "@/lib/workspaces";
+import {
+  chooseBestPersonMatch,
+  FACE_EXTENDED_MATCH_THRESHOLD,
+  FACE_UPLOAD_CANDIDATE_LIMIT,
+  normalizeDescriptor,
+  type FaceCandidateRow,
+} from "@/lib/faceMatching";
+import { getSafeCloudinaryFormat, validateImageUpload } from "@/lib/uploadSecurity";
+import { auth } from "@/auth";
 
 cloudinary.config({
-    cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
+  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-export async function uploadPhoto(formData: FormData) {
-    try {
-        const session = await auth();
-        if (!session?.user) throw new Error("Unauthorized");
+type UploadActionResult = {
+  success: boolean;
+  skipped?: boolean;
+  error?: string;
+  warning?: string;
+  detectedFaces?: number;
+  analysisStatus?: "PROCESSED" | "NO_FACE" | "FAILED";
+  matchedPeople?: number;
+};
 
-        const file = formData.get("file") as File;
-        const descriptorsStr = formData.get("descriptors") as string;
+type CloudinaryUploadResult = {
+  secure_url: string;
+  width?: number;
+  height?: number;
+};
 
-        if (!file) throw new Error("No file");
+function parseDescriptors(rawValue: FormDataEntryValue | null) {
+  if (typeof rawValue !== "string" || rawValue.trim().length === 0) {
+    return [] as number[][];
+  }
 
-        // Convert file to base64 for Cloudinary upload and Hashing
-        const buffer = Buffer.from(await file.arrayBuffer());
-        const base64 = `data:${file.type};base64,${buffer.toString("base64")}`;
+  const parsed = JSON.parse(rawValue);
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
 
-        // Calculate Hash
-        const hash = crypto.createHash('sha256').update(buffer).digest('hex');
+  return parsed
+    .map((descriptor) => {
+      if (Array.isArray(descriptor)) {
+        return normalizeDescriptor(descriptor);
+      }
 
-        // Create Event if not exists
-        const event = await prisma.event.findFirst({
-            where: { ownerId: session.user.id }
-        });
-        let currentEventId = event?.id;
+      if (descriptor && typeof descriptor === "object") {
+        return normalizeDescriptor(Object.values(descriptor).map((value) => Number(value)));
+      }
 
-        if (!currentEventId) {
-            const newEvent = await prisma.event.create({
-                data: {
-                    name: "Wedding Event",
-                    ownerId: session.user.id!,
-                }
-            });
-            currentEventId = newEvent.id;
-        }
-
-        // Check for duplicates in DB
-        const existingPhoto = await prisma.photo.findFirst({
-            where: {
-                eventId: currentEventId,
-                hash: hash
-            }
-        });
-
-        if (existingPhoto) {
-            console.log(`Duplicate photo detected (${hash}). Skipping.`);
-            return { success: true, skipped: true };
-        }
-
-        // Upload to Cloudinary
-        const uploadResult = await new Promise<any>((resolve, reject) => {
-            cloudinary.uploader.upload(base64, {
-                folder: "wedding_event",
-                resource_type: "auto"
-            }, (error, result) => {
-                if (error) reject(error);
-                else resolve(result);
-            });
-        });
-
-        const cloudUrl = uploadResult.secure_url;
-        const width = uploadResult.width;
-        const height = uploadResult.height;
-
-        // Save Photo Reference to DB
-        const photo = await prisma.photo.create({
-            data: {
-                url: cloudUrl,
-                width: width,
-                height: height,
-                eventId: currentEventId,
-                hash: hash
-            }
-        });
-
-        // Save Faces (Vectors)
-        if (descriptorsStr) {
-            const descriptors = JSON.parse(descriptorsStr);
-            for (const desc of descriptors) {
-                const vectorArray = Object.values(desc);
-                const vectorString = `[${vectorArray.join(",")}]`;
-                const faceId = crypto.randomUUID();
-                let personId: string | null = null;
-
-                try {
-                    // Vector Search
-                    const matches = await prisma.$queryRaw<any[]>`
-                    SELECT "personId", "embedding" <-> ${vectorString}::vector as distance 
-                    FROM "Face"
-                    WHERE "personId" IS NOT NULL
-                    ORDER BY distance ASC
-                    LIMIT 1
-                  `;
-
-                    if (matches.length > 0 && matches[0].distance < 0.48) {
-                        personId = matches[0].personId;
-                    } else {
-                        const newPerson = await prisma.person.create({
-                            data: { eventId: currentEventId }
-                        });
-                        personId = newPerson.id;
-                    }
-                } catch (e) {
-                    console.error("Vector search failed, fallback new person", e);
-                    const newPerson = await prisma.person.create({
-                        data: { eventId: currentEventId }
-                    });
-                    personId = newPerson.id;
-                }
-
-                await prisma.$executeRawUnsafe(
-                    `INSERT INTO "Face" ("id", "photoId", "embedding", "personId") VALUES ($1, $2, $3::vector, $4)`,
-                    faceId,
-                    photo.id,
-                    vectorString,
-                    personId
-                );
-            }
-        }
-
-        revalidatePath("/organizer");
-        return { success: true };
-    } catch (error) {
-        console.error("Upload error:", error);
-        return { success: false, error: "Failed to upload" };
-    }
+      return null;
+    })
+    .filter((descriptor): descriptor is number[] => Array.isArray(descriptor));
 }
 
+function uploadImageBufferToCloudinary(
+  buffer: Buffer,
+  {
+    folder,
+    format,
+    publicId,
+  }: {
+    folder: string;
+    format: string;
+    publicId: string;
+  },
+) {
+  return new Promise<CloudinaryUploadResult>((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder,
+        resource_type: "image",
+        public_id: publicId,
+        format,
+        unique_filename: true,
+        use_filename: false,
+        overwrite: false,
+      },
+      (error, result) => {
+        if (error || !result) {
+          reject(error ?? new Error("Cloudinary upload failed"));
+          return;
+        }
+
+        resolve({
+          secure_url: result.secure_url,
+          width: result.width,
+          height: result.height,
+        });
+      },
+    );
+
+    stream.end(buffer);
+  });
+}
+
+export async function uploadPhoto(formData: FormData) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      throw new Error("Unauthorized");
+    }
+
+    const workspaceId = formData.get("workspaceId");
+    if (typeof workspaceId !== "string" || workspaceId.length === 0) {
+      throw new Error("Workspace is required");
+    }
+
+    const workspace = await getUploadWorkspaceById({
+      workspaceId,
+      userId: session.user.id,
+      globalRole: session.user.role,
+    });
+    if (!workspace) {
+      throw new Error("Workspace not found or access denied");
+    }
+
+    const file = formData.get("file");
+    if (!(file instanceof File)) {
+      throw new Error("No file");
+    }
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+    validateImageUpload(file, buffer);
+    const hash = crypto.createHash("sha256").update(buffer).digest("hex");
+    const descriptors = parseDescriptors(formData.get("descriptors"));
+
+    const existingPhoto = await prisma.photo.findFirst({
+      where: {
+        eventId: workspace.id,
+        hash,
+      },
+      select: { id: true },
+    });
+
+    if (existingPhoto) {
+      return { success: true, skipped: true } satisfies UploadActionResult;
+    }
+
+    const uploadResult = await uploadImageBufferToCloudinary(buffer, {
+      folder: `face-organizer/${workspace.slug}`,
+      publicId: crypto.randomUUID(),
+      format: getSafeCloudinaryFormat(file),
+    });
+
+    const photo = await prisma.photo.create({
+      data: {
+        url: uploadResult.secure_url,
+        width: uploadResult.width ?? 0,
+        height: uploadResult.height ?? 0,
+        eventId: workspace.id,
+        uploadedById: session.user.id,
+        hash,
+        faceCount: 0,
+        analysisStatus: "QUEUED",
+      },
+    });
+
+    let analysisStatus: UploadActionResult["analysisStatus"] = "FAILED";
+    const detectedFaces = descriptors.length;
+    let matchedPeople = 0;
+    let warning: string | undefined;
+
+    if (descriptors.length === 0) {
+      analysisStatus = "NO_FACE";
+    } else {
+      try {
+        const assignedPersonIds = await prisma.$transaction(async (tx) => {
+          const assigned = new Set<string>();
+
+          for (const descriptor of descriptors) {
+            const vectorString = `[${descriptor.join(",")}]`;
+            const faceId = crypto.randomUUID();
+            let personId: string | null = null;
+
+            try {
+              const matches = await tx.$queryRaw<FaceCandidateRow[]>`
+                SELECT f."personId", f."photoId", (f.embedding <-> ${vectorString}::vector) AS distance
+                FROM "Face" f
+                INNER JOIN "Person" person ON person.id = f."personId"
+                WHERE person."eventId" = ${workspace.id}
+                  AND (f.embedding <-> ${vectorString}::vector) < ${FACE_EXTENDED_MATCH_THRESHOLD}
+                ORDER BY distance ASC
+                LIMIT ${FACE_UPLOAD_CANDIDATE_LIMIT}
+              `;
+
+              const bestMatch = chooseBestPersonMatch(matches, assigned);
+              if (bestMatch) {
+                personId = bestMatch.personId;
+              } else {
+                const newPerson = await tx.person.create({
+                  data: {
+                    eventId: workspace.id,
+                    coverPhotoId: photo.id,
+                  },
+                });
+                personId = newPerson.id;
+              }
+            } catch (error) {
+              console.error("Vector search failed, creating a new person instead.", error);
+              const newPerson = await tx.person.create({
+                data: {
+                  eventId: workspace.id,
+                  coverPhotoId: photo.id,
+                },
+              });
+              personId = newPerson.id;
+            }
+
+            if (personId) {
+              assigned.add(personId);
+              await tx.person.updateMany({
+                where: {
+                  id: personId,
+                  coverPhotoId: null,
+                },
+                data: {
+                  coverPhotoId: photo.id,
+                },
+              });
+            }
+
+            await tx.$executeRawUnsafe(
+              `INSERT INTO "Face" ("id", "photoId", "embedding", "personId") VALUES ($1, $2, $3::vector, $4)`,
+              faceId,
+              photo.id,
+              vectorString,
+              personId,
+            );
+          }
+
+          return Array.from(assigned);
+        });
+
+        matchedPeople = assignedPersonIds.length;
+        analysisStatus = "PROCESSED";
+      } catch (error) {
+        console.error("Upload analysis failed after original image was stored.", error);
+        warning =
+          error instanceof Error
+            ? error.message
+            : "Face analysis failed after the original image was uploaded.";
+        analysisStatus = "FAILED";
+      }
+    }
+
+    await prisma.photo.update({
+      where: { id: photo.id },
+      data: {
+        faceCount: detectedFaces,
+        analysisStatus,
+        analyzedAt: new Date(),
+      },
+    });
+
+    revalidatePath("/organizer");
+    revalidatePath("/w/[slug]", "page");
+
+    return {
+      success: true,
+      warning,
+      detectedFaces,
+      analysisStatus,
+      matchedPeople,
+    } satisfies UploadActionResult;
+  } catch (error) {
+    console.error("Upload error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to upload photo",
+    } satisfies UploadActionResult;
+  }
+}

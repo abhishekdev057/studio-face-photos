@@ -1,468 +1,448 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { searchPhotos } from "@/actions/search";
-import * as faceapi from "face-api.js";
-import { Camera, Loader2, Download, Search, X, ScanFace, Eye, Sparkles } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import Webcam from "react-webcam";
+import { Camera, Download, Eye, Loader2, ScanFace, Upload, X } from "lucide-react";
 import { resizeImage } from "@/utils/image";
+import {
+  ensureFaceModels,
+  filterReliableDetections,
+  getFullFaceDescription,
+} from "@/utils/faceApi";
 
-interface GuestSearchProps {
-    initialPhotos?: any[];
-    mode?: 'search' | 'shared' | 'all';
+interface WorkspacePhoto {
+  id: string;
+  url: string;
+  faceCount: number;
 }
 
-export default function GuestSearch({ initialPhotos = [], mode = 'search' }: GuestSearchProps) {
-    const [loading, setLoading] = useState(false);
-    const [modelLoaded, setModelLoaded] = useState(false);
-    const [photos, setPhotos] = useState<any[]>(initialPhotos);
-    const [searched, setSearched] = useState(initialPhotos.length > 0);
-    const [cameraOpen, setCameraOpen] = useState(false);
-    const [scannedImage, setScannedImage] = useState<string | null>(null);
-    const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
-    const webcamRef = useRef<Webcam>(null);
-    const [downloadingId, setDownloadingId] = useState<string | null>(null);
-    const [detectedFaces, setDetectedFaces] = useState<any[]>([]);
-    const [isSelectingFace, setIsSelectingFace] = useState(false);
+interface GuestSearchProps {
+  workspaceSlug: string;
+  workspaceName: string;
+}
 
-    useEffect(() => {
-        if (mode === 'search') {
-            const loadModels = async () => {
-                const MODEL_URL = "https://justadudewhohacks.github.io/face-api.js/models";
-                try {
-                    await Promise.all([
-                        faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
-                        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-                        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-                    ]);
-                    setModelLoaded(true);
-                } catch (e) {
-                    console.error(e);
-                }
-            };
-            loadModels();
+const DOMINANT_FACE_AREA_RATIO = 1.85;
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+
+type DetectionCandidate = {
+  descriptor: Float32Array;
+  detection: {
+    score?: number;
+    box: {
+      area: number;
+    };
+  };
+};
+
+function pickPrimaryDetection<T extends DetectionCandidate>(detections: T[]) {
+  if (detections.length === 0) {
+    return null;
+  }
+
+  const ordered = [...detections].sort(
+    (left, right) => right.detection.box.area - left.detection.box.area,
+  );
+
+  if (ordered.length === 1) {
+    return ordered[0];
+  }
+
+  return ordered[0].detection.box.area >= ordered[1].detection.box.area * DOMINANT_FACE_AREA_RATIO
+    ? ordered[0]
+    : null;
+}
+
+export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearchProps) {
+  const webcamRef = useRef<Webcam>(null);
+  const [modelLoaded, setModelLoaded] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [searched, setSearched] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [photos, setPhotos] = useState<WorkspacePhoto[]>([]);
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [status, setStatus] = useState("Loading face engine...");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    ensureFaceModels()
+      .then(() => {
+        if (!cancelled) {
+          setModelLoaded(true);
+          setStatus("Selfie search ready");
         }
-    }, [mode]);
-
-    const performSearch = async (descriptor: number[]) => {
-        setLoading(true);
-        setIsSelectingFace(false);
-        setDetectedFaces([]);
-
-        try {
-            const res = await searchPhotos(descriptor);
-            if (res.success) {
-                const existingIds = new Set();
-                const unique = (res.photos || []).filter((p: any) => {
-                    if (existingIds.has(p.id)) return false;
-                    existingIds.add(p.id);
-                    return true;
-                });
-                setPhotos(unique);
-                setSearched(true); // Set searched only on success
-            } else {
-                alert("Search error");
-            }
-        } catch (err) {
-            console.error(err);
-            alert("Error processing image");
-        } finally {
-            setLoading(false);
-            setScannedImage(null);
+      })
+      .catch((error) => {
+        console.error(error);
+        if (!cancelled) {
+          setStatus("Face engine failed to load");
         }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const statusTone = modelLoaded
+    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+    : status.toLowerCase().includes("failed")
+      ? "border-red-200 bg-red-50 text-red-700"
+      : "border-slate-200 bg-slate-50 text-slate-500";
+
+  const resetSearch = () => {
+    setSearched(false);
+    setPhotos([]);
+    setPreviewImage(null);
+    setCameraOpen(false);
+    setSearching(false);
+  };
+
+  const performSearch = async (descriptor: number[]) => {
+    const response = await fetch(`/api/public-search/${workspaceSlug}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ descriptor }),
+    });
+
+    const rawResponse = await response.text();
+    let result: {
+      success: boolean;
+      error?: string;
+      photos?: WorkspacePhoto[];
     };
 
-    const processImage = async (imageSrc: string | Blob) => {
-        setLoading(true);
-        setCameraOpen(false);
-        setIsSelectingFace(false);
-        setDetectedFaces([]);
+    try {
+      result = JSON.parse(rawResponse) as {
+        success: boolean;
+        error?: string;
+        photos?: WorkspacePhoto[];
+      };
+    } catch {
+      throw new Error(
+        response.ok
+          ? "Search response was invalid. Please try again."
+          : `Search request failed with status ${response.status}.`,
+      );
+    }
 
-        if (typeof imageSrc === 'string') {
-            setScannedImage(imageSrc);
-        } else {
-            setScannedImage(URL.createObjectURL(imageSrc));
-        }
+    if (!response.ok || !result.success) {
+      throw new Error(result.error || "Search failed");
+    }
 
-        try {
-            let img;
-            if (typeof imageSrc === "string") {
-                img = await faceapi.fetchImage(imageSrc);
-            } else {
-                img = await faceapi.bufferToImage(imageSrc);
-            }
+    setPhotos(result.photos || []);
+    setSearched(true);
+  };
 
-            const detections = await faceapi.detectAllFaces(img).withFaceLandmarks().withFaceDescriptors();
+  const processImage = async (imageSource: string | Blob) => {
+    const previewUrl =
+      typeof imageSource === "string" ? imageSource : URL.createObjectURL(imageSource);
 
-            if (detections.length === 0) {
-                alert("No face detected in selfie. Please try again.");
-                setLoading(false);
-                setScannedImage(null);
-                return;
-            }
+    setSearching(true);
+    setCameraOpen(false);
+    setPreviewImage(previewUrl);
 
-            // Sort by size (largest first)
-            detections.sort((a, b) => b.detection.box.area - a.detection.box.area);
+    try {
+      const { image, detections } = await getFullFaceDescription(imageSource);
+      const reliableDetections = filterReliableDetections(detections, {
+        imageWidth: image.width,
+        imageHeight: image.height,
+        minScore: 0.72,
+        minAbsoluteFaceSize: 64,
+        minRelativeFaceSize: 0.07,
+      });
 
-            if (detections.length === 1) {
-                const descriptor = Array.from(detections[0].descriptor);
-                await performSearch(descriptor);
-            } else {
-                // Multiple faces found
-                const faces = detections.map((d, i) => ({
-                    id: i.toString(),
-                    descriptor: Array.from(d.descriptor),
-                    box: {
-                        left: `${(d.detection.box.x / img.width) * 100}%`,
-                        top: `${(d.detection.box.y / img.height) * 100}%`,
-                        width: `${(d.detection.box.width / img.width) * 100}%`,
-                        height: `${(d.detection.box.height / img.height) * 100}%`
-                    }
-                }));
-                setDetectedFaces(faces);
-                setIsSelectingFace(true);
-                setLoading(false);
-                // Keep scannedImage for the selection UI
-            }
+      if (reliableDetections.length === 0) {
+        throw new Error("No clear face found. Try a brighter, front-facing selfie.");
+      }
 
-        } catch (err) {
-            console.error(err);
-            alert("Error processing image");
-            setLoading(false);
-            setScannedImage(null);
-        }
-    };
+      const primaryDetection = pickPrimaryDetection(reliableDetections);
+      if (!primaryDetection) {
+        throw new Error("Use a photo with one face only, or keep your face much closer than everyone else.");
+      }
 
-    const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!e.target.files || e.target.files.length === 0) return;
-        if (!modelLoaded) return alert("Models not loaded yet");
+      await performSearch(Array.from(primaryDetection.descriptor));
+    } catch (error) {
+      console.error(error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "We couldn't finish the selfie match. Please try again.",
+      );
+    } finally {
+      setSearching(false);
+      setPreviewImage(null);
+      if (typeof imageSource !== "string") {
+        URL.revokeObjectURL(previewUrl);
+      }
+    }
+  };
 
-        try {
-            const file = e.target.files[0];
-            const resizedBlob = await resizeImage(file, 1280);
-            processImage(resizedBlob);
-        } catch (e) {
-            console.error(e);
-            alert("Error resizing image");
-        }
-    };
+  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!event.target.files || event.target.files.length === 0) {
+      return;
+    }
 
-    const handleCapture = useCallback(() => {
-        const imageSrc = webcamRef.current?.getScreenshot();
-        if (imageSrc) {
-            processImage(imageSrc);
-        }
-    }, [webcamRef]);
+    if (!modelLoaded) {
+      alert("Face engine is still loading.");
+      return;
+    }
 
-    const showUploadUI = !searched && mode === 'search' && !isSelectingFace;
+    const file = event.target.files[0];
+    event.target.value = "";
 
-    const downloadImage = async (url: string, filename: string, id: string) => {
-        setDownloadingId(id);
-        try {
-            const response = await fetch(url);
-            if (!response.ok) throw new Error('Network response was not ok');
-            const blob = await response.blob();
-            const objectUrl = URL.createObjectURL(blob);
+    if (file.size > MAX_UPLOAD_BYTES) {
+      alert("Keep uploads below 25 MB.");
+      return;
+    }
 
-            const link = document.createElement('a');
-            link.href = objectUrl;
-            link.download = filename;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(objectUrl);
-        } catch (error) {
-            console.error('Download failed:', error);
-            // Fallback to opening in new tab
-            window.open(url, '_blank');
-        } finally {
-            setDownloadingId(null);
-        }
-    };
+    try {
+      const resizedBlob = await resizeImage(file, 1280);
+      await processImage(resizedBlob);
+    } catch (error) {
+      console.error(error);
+      alert("We couldn't prepare that selfie. Please try another one.");
+    }
+  };
 
-    return (
-        <div className="w-full max-w-6xl mx-auto space-y-12 animate-enter">
+  const handleCapture = async () => {
+    if (!modelLoaded) {
+      alert("Face engine is still loading.");
+      return;
+    }
 
-            {/* Hero Section (Search Mode) */}
-            {mode === 'search' && !searched && (
-                <div className="text-center space-y-4 pt-10">
-                    <h1 className="text-5xl md:text-7xl font-bold tracking-tighter bg-clip-text text-transparent bg-gradient-to-br from-white via-white to-zinc-500">
-                        The Wedding<br />Gallery
-                    </h1>
-                    <p className="text-lg md:text-xl text-zinc-400 max-w-2xl mx-auto font-light">
-                        Experience the magic again. <br className="hidden md:block" />
-                        <span className="text-cyan-400 font-medium">Take a selfie</span> to instantly find every memory you're part of.
-                    </p>
-                </div>
-            )}
+    const imageSrc = webcamRef.current?.getScreenshot();
+    if (!imageSrc) {
+      return;
+    }
 
-            {/* Header for Shared/All Mode */}
-            {mode !== 'search' && (
-                <div className="text-center space-y-2 pt-10">
-                    <h2 className="text-4xl font-bold text-white tracking-tight">
-                        {mode === 'shared' ? "Your Personal Album" : "Event Gallery"}
-                    </h2>
-                    {mode === 'shared' && <p className="text-zinc-400">Curated memories, just for you.</p>}
-                </div>
-            )}
+    await processImage(imageSrc);
+  };
 
-            {/* Scanning Overlay */}
-            {loading && scannedImage && (
-                <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black backdrop-blur-3xl animate-in fade-in duration-300">
-                    <div className="relative">
-                        {/* Scanner Frame */}
-                        <div className="relative w-80 h-80 rounded-2xl overflow-hidden border-2 border-cyan-500/30 shadow-[0_0_100px_rgba(6,182,212,0.2)] bg-zinc-900">
-                            {/* Target Image */}
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={scannedImage} alt="Scanning" className="w-full h-full object-cover opacity-60" />
+  const downloadImage = async (url: string, filename: string, id: string) => {
+    setDownloadingId(id);
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error("Download failed");
+      }
 
-                            {/* Grid Overlay */}
-                            <div className="absolute inset-0 bg-[linear-gradient(rgba(6,182,212,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.1)_1px,transparent_1px)] bg-[size:40px_40px]" />
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      console.error(error);
+      window.open(url, "_blank", "noopener,noreferrer");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
-                            {/* Moving Scan Line */}
-                            <div className="absolute left-0 right-0 h-0.5 bg-cyan-400 shadow-[0_0_20px_rgba(6,182,212,1)] animate-scan-vertical" />
+  return (
+    <div className="space-y-8">
+      <section className="rounded-[2rem] border border-slate-200 bg-white p-6 text-slate-950 shadow-[0_30px_80px_rgba(15,23,42,0.12)]">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-slate-600">
+              <ScanFace className="h-3.5 w-3.5" />
+              Selfie access only
+            </div>
+            <h1 className="text-4xl font-semibold tracking-tight">Find your photos</h1>
+            <p className="text-sm text-slate-500">
+              {workspaceName}. Upload one selfie or use the camera.
+            </p>
+          </div>
 
-                            {/* Scanning Radar/Ripple Effect */}
-                            <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/10 via-transparent to-transparent animate-scan-vertical opacity-30" />
-                        </div>
-
-                        {/* Corner Brackets */}
-                        <div className="absolute -inset-6 pointer-events-none">
-                            <div className="absolute top-0 left-0 w-12 h-12 border-t-2 border-l-2 border-cyan-500 rounded-tl-3xl opacity-80" />
-                            <div className="absolute top-0 right-0 w-12 h-12 border-t-2 border-r-2 border-cyan-500 rounded-tr-3xl opacity-80" />
-                            <div className="absolute bottom-0 left-0 w-12 h-12 border-b-2 border-l-2 border-cyan-500 rounded-bl-3xl opacity-80" />
-                            <div className="absolute bottom-0 right-0 w-12 h-12 border-b-2 border-r-2 border-cyan-500 rounded-br-3xl opacity-80" />
-                        </div>
-                    </div>
-
-                    <div className="mt-12 flex flex-col items-center gap-6">
-                        <div className="flex items-center gap-4">
-                            <Loader2 className="w-6 h-6 text-cyan-400 animate-spin" />
-                            <span className="text-cyan-400 font-mono text-xl tracking-[0.3em] font-medium animate-pulse shadow-cyan-500/50">
-                                ANALYZING
-                            </span>
-                        </div>
-                        <div className="flex flex-col items-center gap-2">
-                            <p className="text-zinc-400 text-sm font-light">Matching biometric features...</p>
-                            <div className="flex gap-1">
-                                <div className="w-1 h-1 bg-cyan-500 rounded-full animate-bounce delay-0" />
-                                <div className="w-1 h-1 bg-cyan-500 rounded-full animate-bounce delay-100" />
-                                <div className="w-1 h-1 bg-cyan-500 rounded-full animate-bounce delay-200" />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Face Selection UI */}
-            {isSelectingFace && scannedImage && (
-                <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/95 backdrop-blur-xl animate-in fade-in duration-300 p-4">
-                    <h2 className="text-2xl font-bold text-white mb-6 text-center">
-                        Multiple Faces Detected
-                        <span className="text-zinc-400 block text-base font-normal mt-2">Tap your face to search</span>
-                    </h2>
-
-                    <div className="relative inline-block max-w-full max-h-[70vh] shadow-2xl rounded-2xl overflow-hidden ring-1 ring-white/10">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={scannedImage} alt="Select your face" className="block max-w-full max-h-[70vh] object-contain" />
-
-                        {detectedFaces.map((face) => (
-                            <button
-                                key={face.id}
-                                onClick={() => performSearch(face.descriptor)}
-                                style={{
-                                    left: face.box.left,
-                                    top: face.box.top,
-                                    width: face.box.width,
-                                    height: face.box.height
-                                }}
-                                className="absolute border-2 border-cyan-400 bg-cyan-400/20 hover:bg-cyan-400/40 hover:scale-105 transition-all duration-200 cursor-pointer rounded-lg shadow-[0_0_20px_rgba(34,211,238,0.5)] z-10 group"
-                            >
-                                <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-black/80 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                                    That's me!
-                                </div>
-                            </button>
-                        ))}
-                    </div>
-
-                    <button
-                        onClick={() => {
-                            setIsSelectingFace(false);
-                            setScannedImage(null);
-                        }}
-                        className="mt-8 text-zinc-500 hover:text-white transition-colors flex items-center gap-2"
-                    >
-                        <X className="w-4 h-4" /> Cancel
-                    </button>
-                </div>
-            )}
-
-            {/* Search Input Area */}
-            {showUploadUI && (
-                <div className="flex flex-col items-center justify-center space-y-8 bg-black/50 p-8 rounded-3xl border border-white/5 backdrop-blur-sm max-w-2xl mx-auto shadow-2xl shadow-black/50">
-
-                    {cameraOpen ? (
-                        <div className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl ring-1 ring-zinc-800">
-                            <Webcam
-                                ref={webcamRef}
-                                audio={false}
-                                screenshotFormat="image/jpeg"
-                                videoConstraints={{ facingMode: "user" }}
-                                className="w-full h-full object-cover"
-                            />
-                            <button
-                                onClick={() => setCameraOpen(false)}
-                                className="absolute top-4 right-4 bg-black/50 text-white p-2.5 rounded-full backdrop-blur-md hover:bg-black/70 transition-all border border-white/10"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-                            <div className="absolute bottom-6 left-0 right-0 flex justify-center">
-                                <button
-                                    onClick={handleCapture}
-                                    className="bg-white rounded-full p-1 shadow-2xl hover:scale-105 transition-transform"
-                                >
-                                    <div className="w-16 h-16 rounded-full border-4 border-black bg-white" />
-                                </button>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="flex flex-col md:flex-row gap-6 w-full justify-center items-stretch">
-                            {/* Upload Area */}
-                            <div className="relative group flex-1">
-                                <div className={`
-                                    h-40 md:h-48 rounded-2xl bg-zinc-900/50 border-2 border-dashed border-zinc-700 
-                                    flex flex-col items-center justify-center gap-4
-                                    group-hover:border-cyan-500/50 group-hover:bg-zinc-900
-                                    transition-all duration-300 cursor-pointer
-                                `}>
-                                    <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                        <Sparkles className="w-6 h-6 text-zinc-400 group-hover:text-cyan-400" />
-                                    </div>
-                                    <span className="text-zinc-400 group-hover:text-white font-medium">Upload a Selfie</span>
-                                </div>
-
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                    onChange={handleUpload}
-                                    disabled={loading || !modelLoaded}
-                                />
-                            </div>
-
-                            <div className="flex items-center justify-center text-zinc-600 font-mono text-sm">OR</div>
-
-                            {/* Camera Button */}
-                            <button
-                                onClick={() => setCameraOpen(true)}
-                                disabled={!modelLoaded || loading}
-                                className="flex-1 h-40 md:h-48 rounded-2xl bg-gradient-to-br from-cyan-600/10 to-blue-600/10 border border-cyan-500/20 hover:border-cyan-500/50 hover:bg-cyan-500/10 transition-all flex flex-col items-center justify-center gap-4 group"
-                            >
-                                <div className="w-12 h-12 rounded-full bg-cyan-500/20 flex items-center justify-center group-hover:scale-110 transition-transform border border-cyan-500/20">
-                                    <Camera className="w-6 h-6 text-cyan-400" />
-                                </div>
-                                <span className="text-cyan-100 font-medium">Open Camera</span>
-                            </button>
-                        </div>
-                    )}
-
-                    <div className="flex items-center gap-2 text-zinc-500 text-sm bg-black/40 px-4 py-2 rounded-full border border-white/5">
-                        <div className={`w-2 h-2 rounded-full ${modelLoaded ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-yellow-500 animate-pulse'}`} />
-                        {modelLoaded ? "AI Face Engine Ready" : "Initializing Neural Networks..."}
-                    </div>
-                </div>
-            )}
-
-            {/* Results Grid */}
-            {searched && (
-                <div className="space-y-8">
-                    {mode === 'search' && (
-                        <div className="text-center space-y-2">
-                            <h3 className="text-2xl font-bold text-white flex items-center justify-center gap-3">
-                                <Sparkles className="text-cyan-400" />
-                                We found {photos.length} memories
-                            </h3>
-                            {photos.length > 0 && <p className="text-zinc-400">Tap any photo to view in full quality.</p>}
-                        </div>
-                    )}
-
-                    {photos.length === 0 && !loading ? (
-                        <div className="text-center py-20 bg-zinc-900/30 border border-zinc-800 rounded-3xl backdrop-blur-sm max-w-lg mx-auto">
-                            <h4 className="text-xl font-medium text-zinc-300">No matches found</h4>
-                            <p className="text-zinc-500 mt-2">Try uploading a clear photo with good lighting.</p>
-                            <button onClick={() => window.location.reload()} className="mt-6 text-cyan-400 hover:text-cyan-300 hover:underline">
-                                Try Again
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4 space-y-4 px-4">
-                            {photos.map((photo) => (
-                                <div key={photo.id} className="relative group break-inside-avoid rounded-xl overflow-hidden shadow-lg cursor-zoom-in" onClick={() => setSelectedPhoto(photo.url)}>
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img
-                                        src={photo.url}
-                                        alt="Memory"
-                                        className="w-full bg-zinc-900 hover:scale-[1.02] transition-transform duration-500"
-                                    />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center p-4">
-                                        <div className="flex gap-3 translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); setSelectedPhoto(photo.url); }}
-                                                className="bg-white/10 backdrop-blur-md text-white p-2.5 rounded-full hover:bg-white/20 transition-colors border border-white/10"
-                                                title="View"
-                                            >
-                                                <Eye className="w-5 h-5" />
-                                            </button>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    downloadImage(photo.url, `photo-${photo.id}.jpg`, photo.id);
-                                                }}
-                                                disabled={downloadingId === photo.id}
-                                                className="bg-white text-black p-2.5 rounded-full hover:bg-cyan-50 transition-colors shadow-lg hover:shadow-cyan-500/25 disabled:opacity-50"
-                                                title="Download"
-                                            >
-                                                {downloadingId === photo.id ? (
-                                                    <Loader2 className="w-5 h-5 animate-spin" />
-                                                ) : (
-                                                    <Download className="w-5 h-5" />
-                                                )}
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {mode !== 'search' && (
-                        <div className="flex justify-center pt-8 border-t border-zinc-800">
-                            <a href="/guest" className="text-zinc-500 hover:text-white text-sm">
-                                Not you? <span className="underline">Find your own photos</span>
-                            </a>
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* View Photo Modal */}
-            {selectedPhoto && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 backdrop-blur-xl p-4 animate-in fade-in duration-300" onClick={() => setSelectedPhoto(null)}>
-                    <button
-                        className="absolute top-6 right-6 text-white/50 hover:text-white p-2 z-50 transition-colors bg-white/10 rounded-full hover:bg-white/20"
-                        onClick={() => setSelectedPhoto(null)}
-                    >
-                        <X className="w-6 h-6" />
-                    </button>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                        src={selectedPhoto}
-                        alt="Full size memory"
-                        className="max-w-full max-h-[90vh] rounded-lg shadow-2xl object-contain animate-in zoom-in-95 duration-300"
-                        onClick={(e) => e.stopPropagation()}
-                    />
-                </div>
-            )}
+          <div className={`rounded-full border px-4 py-2 text-sm ${statusTone}`}>
+            {status}
+          </div>
         </div>
-    );
+
+        <div className="mt-6 grid gap-4 md:grid-cols-[1fr_auto_1fr]">
+          <label className="group relative flex min-h-52 cursor-pointer flex-col items-center justify-center gap-4 rounded-[1.6rem] border border-dashed border-slate-300 bg-slate-50 px-6 text-center transition hover:border-slate-400 hover:bg-slate-100">
+            <div className="rounded-full bg-white p-4 shadow-sm">
+              <Upload className="h-6 w-6 text-slate-700" />
+            </div>
+            <div>
+              <div className="text-lg font-semibold text-slate-900">Upload selfie</div>
+              <div className="mt-1 text-sm text-slate-500">One clear face.</div>
+            </div>
+            <input
+              type="file"
+              accept="image/*"
+              className="absolute inset-0 cursor-pointer opacity-0"
+              onChange={handleUpload}
+              disabled={searching}
+            />
+          </label>
+
+          <div className="flex items-center justify-center text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
+            or
+          </div>
+
+          {cameraOpen ? (
+            <div className="relative overflow-hidden rounded-[1.6rem] border border-slate-200 bg-black">
+              <Webcam
+                ref={webcamRef}
+                audio={false}
+                screenshotFormat="image/jpeg"
+                videoConstraints={{ facingMode: "user" }}
+                className="aspect-video w-full object-cover"
+              />
+              <button
+                type="button"
+                onClick={() => setCameraOpen(false)}
+                className="absolute right-4 top-4 rounded-full bg-black/60 p-2 text-white transition hover:bg-black/80"
+              >
+                <X className="h-5 w-5" />
+              </button>
+              <div className="absolute inset-x-0 bottom-6 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => void handleCapture()}
+                  className="rounded-full bg-white p-1 shadow-2xl transition hover:scale-105"
+                >
+                  <div className="h-16 w-16 rounded-full border-4 border-black bg-white" />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setCameraOpen(true)}
+              disabled={searching}
+              className="flex min-h-52 flex-col items-center justify-center gap-4 rounded-[1.6rem] border border-slate-200 bg-slate-950 px-6 text-center text-white transition hover:bg-slate-900 disabled:opacity-60"
+            >
+              <div className="rounded-full bg-white/10 p-4">
+                <Camera className="h-6 w-6" />
+              </div>
+              <div>
+                <div className="text-lg font-semibold">Use camera</div>
+                <div className="mt-1 text-sm text-slate-300">Take a live selfie.</div>
+              </div>
+            </button>
+          )}
+        </div>
+      </section>
+
+      {searching && previewImage && (
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-slate-950/95 backdrop-blur-2xl">
+          <div className="relative overflow-hidden rounded-[2rem] border border-white/10">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={previewImage} alt="Scanning selfie" className="h-80 w-80 object-cover opacity-70" />
+            <div className="absolute inset-x-0 top-0 h-0.5 animate-scan-vertical bg-cyan-400 shadow-[0_0_16px_rgba(34,211,238,0.95)]" />
+          </div>
+          <div className="mt-8 flex items-center gap-3 text-cyan-200">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span className="text-sm font-semibold uppercase tracking-[0.24em]">Scanning</span>
+          </div>
+        </div>
+      )}
+
+      {searched && (
+        <section className="space-y-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold text-slate-950">
+                {photos.length > 0 ? `${photos.length} photos found` : "No photos found"}
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                {photos.length > 0
+                  ? "Only your matched photos are shown."
+                  : "Try another selfie with better light and one clear face."}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={resetSearch}
+              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
+            >
+              Try another selfie
+            </button>
+          </div>
+
+          {photos.length > 0 ? (
+            <div className="columns-1 gap-4 space-y-4 sm:columns-2 lg:columns-3 xl:columns-4">
+              {photos.map((photo) => (
+                <div
+                  key={photo.id}
+                  className="group relative mb-4 break-inside-avoid overflow-hidden rounded-[1.4rem] border border-slate-200 bg-slate-50 shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPhoto(photo.url)}
+                    className="block w-full text-left"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={photo.url} alt="Matched photo" className="w-full transition duration-500 group-hover:scale-[1.02]" />
+                  </button>
+                  <div className="absolute inset-0 flex items-end justify-center bg-gradient-to-t from-slate-950/80 via-transparent to-transparent opacity-0 transition group-hover:opacity-100">
+                    <div className="mb-4 flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPhoto(photo.url)}
+                        className="rounded-full bg-white/90 p-2.5 text-slate-700 backdrop-blur-md transition hover:bg-white"
+                        title="View full image"
+                      >
+                        <Eye className="h-5 w-5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void downloadImage(photo.url, `photo-${photo.id}.jpg`, photo.id)}
+                        disabled={downloadingId === photo.id}
+                        className="rounded-full bg-white p-2.5 text-slate-950 shadow-lg transition hover:bg-cyan-50 disabled:opacity-60"
+                        title="Download image"
+                      >
+                        {downloadingId === photo.id ? (
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                        ) : (
+                          <Download className="h-5 w-5" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-[1.8rem] border border-dashed border-slate-200 bg-slate-50 px-6 py-14 text-center">
+              <div className="text-lg font-semibold text-slate-950">Nothing matched yet</div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {selectedPhoto && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 p-4 backdrop-blur-xl"
+          onClick={() => setSelectedPhoto(null)}
+        >
+          <button
+            className="absolute right-6 top-6 rounded-full bg-white/10 p-2 text-white/70 transition hover:bg-white/20 hover:text-white"
+            onClick={() => setSelectedPhoto(null)}
+          >
+            <X className="h-6 w-6" />
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={selectedPhoto}
+            alt="Selected photo"
+            className="max-h-[90vh] max-w-full rounded-[1.4rem] object-contain shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          />
+        </div>
+      )}
+    </div>
+  );
 }

@@ -1,59 +1,49 @@
-import GuestSearch from "@/components/GuestSearch";
-import { getPersonPhotos, getAllPhotos } from "@/actions/gallery";
+import { auth } from "@/auth";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { isOrganizer } from "@/lib/workspaces";
 
-interface GuestPageProps {
-    searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
-}
+export default async function GuestPage() {
+  const session = await auth();
+  if (session?.user && isOrganizer(session.user.role)) {
+    redirect("/organizer");
+  }
 
-export default async function GuestPage({ searchParams }: GuestPageProps) {
-    const params = await searchParams;
-    const personId = params.personId as string | undefined;
-    const viewMode = params.view as string | undefined; // 'all'
+  const hasSignedInViewer = !!session?.user;
 
-    let initialPhotos: any[] = [];
-    let mode: 'search' | 'shared' | 'all' = 'search';
-
-    if (personId) {
-        const res = await getPersonPhotos(personId);
-        if (res.success && res.photos) {
-            initialPhotos = res.photos;
-            mode = 'shared';
-        }
-    } else if (viewMode === 'all') {
-        const res = await getAllPhotos();
-        if (res.success && res.photos) {
-            initialPhotos = res.photos;
-            mode = 'all';
-        }
-    }
-
-    return (
-        <div className="min-h-screen bg-background text-white p-4 md:p-8">
-            <header className="mb-12 flex justify-center items-center text-zinc-500 gap-6">
-                <div>Wedding Guest View</div>
-                {mode !== 'all' && (
-                    <a href="/guest?view=all" className="text-xs border border-zinc-800 px-3 py-1 rounded-full hover:bg-zinc-800 transition">
-                        View Full Gallery
-                    </a>
-                )}
-            </header>
-
-
-            <div className="max-w-6xl mx-auto">
-                {mode === 'search' && (
-                    <div className="text-center mb-12 space-y-4">
-                        <h1 className="text-4xl md:text-6xl font-black bg-clip-text text-transparent bg-gradient-to-b from-white to-zinc-500">
-                            Find Your Moments
-                        </h1>
-                        <p className="text-xl text-zinc-400">
-                            Using advanced face recognition to build your personal album.
-                        </p>
-                    </div>
-                )}
-
-                <GuestSearch initialPhotos={initialPhotos} mode={mode} />
-            </div>
+  return (
+    <div className="flex min-h-[calc(100vh-72px)] items-center justify-center bg-[#f5f7fb] px-4 py-10 text-slate-950">
+      <div className="max-w-2xl rounded-[2rem] border border-slate-200 bg-white p-8 text-center shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+        <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+          {hasSignedInViewer ? "Public access only" : "Guest access moved"}
         </div>
-    );
+        <h1 className="mt-4 text-4xl font-semibold">
+          {hasSignedInViewer ? "This account is not an organizer" : "Open your selfie link"}
+        </h1>
+        <p className="mt-4 text-sm leading-7 text-slate-500">
+          {hasSignedInViewer ? (
+            <>
+              Ask a system admin to add you to a workspace, or use a guest link that starts with{" "}
+              <span className="font-mono text-slate-700">/w/...</span>.
+            </>
+          ) : (
+            <>
+              Ask your organizer for a link that starts with{" "}
+              <span className="font-mono text-slate-700">/w/...</span>.
+            </>
+          )}
+        </p>
+        {!hasSignedInViewer && (
+          <div className="mt-8 flex justify-center">
+            <Link
+              href="/login"
+              className="rounded-full border border-slate-200 bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+            >
+              Organizer sign in
+            </Link>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
-

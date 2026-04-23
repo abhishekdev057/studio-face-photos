@@ -1,90 +1,105 @@
-"use client"
+"use client";
 
-import { Share2, User, Check, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { Trash2, User, Users } from "lucide-react";
 import Link from "next/link";
 import { deletePerson } from "@/actions/delete";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 interface PersonCardProps {
-    person: {
-        id: string;
-        faces: {
-            photo: {
-                url: string;
-            }
-        }[]
-    }
+  workspaceId: string;
+  workspaceSlug: string;
+  canManage: boolean;
+  person: {
+    id: string;
+    name: string | null;
+    faceCount: number;
+    coverUrl?: string | null;
+  };
 }
 
-export default function PersonCard({ person }: PersonCardProps) {
-    const [copied, setCopied] = useState(false);
-    const [deleting, setDeleting] = useState(false);
-    const router = useRouter();
-    const coverUrl = person.faces[0]?.photo?.url;
+export default function PersonCard({
+  workspaceId,
+  workspaceSlug,
+  canManage,
+  person,
+}: PersonCardProps) {
+  const [deleting, setDeleting] = useState(false);
+  const router = useRouter();
 
-    const handleCopyLink = (e: React.MouseEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const link = `${window.location.origin}/guest?personId=${person.id}`;
-        navigator.clipboard.writeText(link);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-    };
+  const handleDelete = async (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
 
-    const handleDelete = async (e: React.MouseEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
+    if (!confirm("Delete this detected guest group and remove its matched photos from the album view?")) {
+      return;
+    }
 
-        if (!confirm("Are you sure you want to delete this album? This cannot be undone.")) return;
+    setDeleting(true);
+    const result = await deletePerson(person.id, workspaceId);
+    if (result.success) {
+      router.refresh();
+      return;
+    }
 
-        setDeleting(true);
-        const res = await deletePerson(person.id);
-        if (res.success) {
-            // Router refresh to update the list
-            router.refresh();
-        } else {
-            alert("Failed to delete");
-            setDeleting(false);
-        }
-    };
+    alert(result.error ?? "Failed to delete guest group");
+    setDeleting(false);
+  };
 
-    if (deleting) return null; // Optimistic hide
+  if (deleting) {
+    return null;
+  }
 
-    return (
-        <div className="group relative aspect-square bg-zinc-900 rounded-lg overflow-hidden border border-zinc-800 hover:border-cyan-500/50 transition-all">
-            {coverUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={coverUrl} alt="Person" className="object-cover w-full h-full opacity-80 group-hover:opacity-100 transition-opacity" />
-            ) : (
-                <div className="w-full h-full flex items-center justify-center bg-zinc-950">
-                    <User className="w-8 h-8 text-zinc-700" />
-                </div>
-            )}
-
-            {/* Clickable Overlay to Open Album */}
-            <Link href={`/organizer/person/${person.id}`} className="absolute inset-0 z-10" />
-
-            {/* Actions */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent flex flex-col justify-end p-3 pointer-events-none">
-                <div className="flex justify-between items-center pointer-events-auto">
-                    <button
-                        onClick={handleDelete}
-                        className="bg-red-500/10 hover:bg-red-500/20 text-red-500 p-1.5 rounded-md backdrop-blur-md border border-red-500/20 transition hover:scale-105"
-                        title="Delete Album"
-                    >
-                        <Trash2 className="w-4 h-4" />
-                    </button>
-
-                    <button
-                        onClick={handleCopyLink}
-                        className="bg-zinc-800 hover:bg-zinc-700 text-white text-xs py-1.5 px-3 rounded-md backdrop-blur-md border border-zinc-700 flex items-center gap-2 transition active:scale-95"
-                    >
-                        {copied ? <Check className="w-3 h-3 text-green-400" /> : <Share2 className="w-3 h-3" />}
-                        {copied ? "Copied" : "Share"}
-                    </button>
-                </div>
+  return (
+    <div className="group overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.06)] transition hover:-translate-y-1 hover:border-slate-300">
+      <Link href={`/organizer/person/${person.id}?workspace=${workspaceSlug}`} className="block">
+        <div className="relative aspect-[0.92] overflow-hidden">
+          {person.coverUrl ? (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={person.coverUrl}
+                alt={person.name || "Detected person"}
+                className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/75 via-slate-950/10 to-transparent" />
+            </>
+          ) : (
+            <div className="flex h-full items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(191,219,254,0.6),_transparent_55%),linear-gradient(180deg,#f8fafc,#e2e8f0)]">
+              <User className="h-10 w-10 text-slate-400" />
             </div>
+          )}
+
+          <div className="absolute bottom-3 left-3 rounded-full bg-white/90 px-3 py-1 text-xs font-medium text-slate-700 backdrop-blur-md">
+            Album {person.faceCount}
+          </div>
         </div>
-    );
+      </Link>
+
+      <div className="space-y-3 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-slate-950">{person.name || "Guest cluster"}</div>
+            <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+              <Users className="h-3.5 w-3.5" />
+              {person.faceCount} matched face{person.faceCount === 1 ? "" : "s"}
+            </div>
+          </div>
+        </div>
+
+        {canManage && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleDelete}
+              className="inline-flex w-full items-center justify-center rounded-full border border-red-200 bg-red-50 p-2.5 text-red-700 transition hover:bg-red-100"
+              title="Delete guest group"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }

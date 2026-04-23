@@ -1,62 +1,79 @@
 import { redirect } from "next/navigation";
-import { auth, signIn } from "@/auth";
-import { Camera } from "lucide-react";
+import { auth } from "@/auth";
+import GoogleLoginForm from "@/components/GoogleLoginForm";
+import { isOrganizer } from "@/lib/workspaces";
+import { Camera, FolderKanban, ScanFace, Shield } from "lucide-react";
 
 export default async function LoginPage() {
-    const session = await auth();
-    if (session?.user) {
-        if ((session.user as any).role === "ADMIN" || (session.user as any).role === "ORGANIZER") {
-            redirect("/organizer");
-        } else {
-            redirect("/guest");
-        }
-    }
+  const session = await auth();
+  if (session?.user) {
+    redirect(isOrganizer(session.user.role) ? "/organizer" : "/guest");
+  }
 
-    return (
-        <div className="flex min-h-[calc(100vh-64px)] items-center justify-center p-4 relative overflow-hidden">
+  return (
+    <div className="relative flex min-h-[calc(100vh-72px)] items-center justify-center overflow-hidden bg-[#f5f7fb] px-4 py-10 text-slate-950">
+      <div className="relative z-10 grid w-full max-w-6xl gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+        <section className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_30px_80px_rgba(15,23,42,0.08)] md:p-10">
+          <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-slate-600">
+            <Camera className="h-3.5 w-3.5" />
+            Private face workspace
+          </div>
 
-            {/* Decorative Background Elements */}
-            <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-cyan-500/20 rounded-full blur-[100px] animate-pulse" />
-            <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-[100px]" />
+          <div className="mt-6 max-w-2xl space-y-5">
+            <h1 className="text-4xl font-semibold tracking-tight md:text-6xl">
+              Private photo access, clean workspace control.
+            </h1>
+            <p className="text-base leading-7 text-slate-500 md:text-lg">
+              Upload originals. Match faces. Share one selfie link.
+            </p>
+          </div>
 
-            <div className="w-full max-w-md animate-enter z-10">
-                <div className="glass-panel rounded-2xl p-8 space-y-8 backdrop-blur-2xl">
+          <div className="mt-10 grid gap-4 md:grid-cols-3">
+            {[
+              {
+                icon: FolderKanban,
+                title: "Workspaces",
+                body: "Keep every event separate.",
+              },
+              {
+                icon: Shield,
+                title: "Private access",
+                body: "Guests only see their own matches.",
+              },
+              {
+                icon: ScanFace,
+                title: "Selfie search",
+                body: "One face in, matched photos out.",
+              },
+            ].map((feature) => (
+              <div key={feature.title} className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
+                <feature.icon className="h-5 w-5 text-slate-700" />
+                <div className="mt-4 text-lg font-semibold">{feature.title}</div>
+                <p className="mt-2 text-sm leading-6 text-slate-500">{feature.body}</p>
+              </div>
+            ))}
+          </div>
+        </section>
 
-                    <div className="text-center space-y-2">
-                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-600 mb-4 shadow-lg shadow-cyan-500/20">
-                            <Camera className="w-8 h-8 text-white" />
-                        </div>
-                        <h1 className="text-3xl font-bold tracking-tight text-white">Welcome Back</h1>
-                        <p className="text-zinc-400">Sign in to manage your event photos</p>
-                    </div>
-
-                    <form
-                        action={async () => {
-                            "use server";
-                            await signIn("google", { redirectTo: "/organizer" });
-                        }}
-                        className="space-y-4"
-                    >
-                        <button
-                            type="submit"
-                            className="w-full group relative flex items-center justify-center gap-3 bg-white text-black font-semibold py-4 px-6 rounded-xl hover:scale-[1.02] transition-all duration-300 shadow-xl shadow-white/5 overflow-hidden"
-                        >
-                            <img
-                                src="https://authjs.dev/img/providers/google.svg"
-                                alt="Google"
-                                className="w-5 h-5 relative z-10"
-                            />
-                            <span className="relative z-10">Continue with Google</span>
-
-                            <div className="absolute inset-0 bg-gradient-to-r from-gray-100 to-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </button>
-
-                        <div className="text-center text-xs text-zinc-500">
-                            By signing in, I agree to allow face analysis on my photos.
-                        </div>
-                    </form>
-                </div>
+        <section className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+          <div className="space-y-3 text-center">
+            <div className="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-950 text-white shadow-[0_18px_40px_rgba(15,23,42,0.12)]">
+              <Camera className="h-8 w-8" />
             </div>
-        </div>
-    );
+            <h2 className="text-3xl font-semibold">Sign in</h2>
+            <p className="text-sm leading-6 text-slate-500">
+              Your workspace stays behind your account.
+            </p>
+          </div>
+
+          <div className="mt-8 space-y-5">
+            <GoogleLoginForm />
+            <div className="rounded-[1.4rem] border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+              Upload only the photos you have permission to process and share.
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
 }

@@ -1,150 +1,180 @@
-"use client"
+"use client";
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, User, ImageIcon, Trash2, Check, Share2, ExternalLink } from "lucide-react";
+import { ArrowLeft, User, ImageIcon, Trash2, ExternalLink } from "lucide-react";
 import { deletePerson, deletePhoto } from "@/actions/delete";
 import { useRouter } from "next/navigation";
 
 interface PersonDetailClientProps {
-    person: {
-        id: string;
-    };
-    initialPhotos: any[];
+  workspaceId: string;
+  workspaceSlug: string;
+  workspaceName: string;
+  canManage: boolean;
+  person: {
+    id: string;
+    name: string | null;
+    faceCount: number;
+  };
+  initialPhotos: Array<{
+    id: string;
+    url: string;
+    faceCount: number;
+  }>;
 }
 
-export default function PersonDetailClient({ person, initialPhotos }: PersonDetailClientProps) {
-    const [photos, setPhotos] = useState(initialPhotos);
-    const [deletingAlbum, setDeletingAlbum] = useState(false);
-    const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
-    const [copied, setCopied] = useState(false);
-    const router = useRouter();
+export default function PersonDetailClient({
+  workspaceId,
+  workspaceSlug,
+  workspaceName,
+  canManage,
+  person,
+  initialPhotos,
+}: PersonDetailClientProps) {
+  const [photos, setPhotos] = useState(initialPhotos);
+  const [deletingAlbum, setDeletingAlbum] = useState(false);
+  const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
+  const router = useRouter();
 
-    const handleCopyLink = () => {
-        const link = `${window.location.origin}/guest?personId=${person.id}`;
-        navigator.clipboard.writeText(link);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-    };
+  const handleDeleteAlbum = async () => {
+    if (!confirm("Delete this guest group and remove all its matched album entries?")) {
+      return;
+    }
 
-    const handleDeleteAlbum = async () => {
-        if (!confirm("Are you sure you want to delete this ENTIRE album? This action cannot be undone.")) return;
-        setDeletingAlbum(true);
-        const res = await deletePerson(person.id);
-        if (res.success) {
-            router.push("/organizer");
-        } else {
-            alert("Failed to delete album");
-            setDeletingAlbum(false);
-        }
-    };
+    setDeletingAlbum(true);
+    const result = await deletePerson(person.id, workspaceId);
+    if (result.success) {
+      router.push(`/organizer?workspace=${workspaceSlug}`);
+      router.refresh();
+      return;
+    }
 
-    const handleDeletePhoto = async (photoId: string) => {
-        if (!confirm("Delete this photo?")) return;
-        setDeletingPhotoId(photoId);
-        const res = await deletePhoto(photoId);
-        if (res.success) {
-            setPhotos(photos.filter(p => p.id !== photoId));
-            router.refresh(); // Refresh server data too (revalidatePath)
-        } else {
-            alert("Failed to delete photo");
-        }
-        setDeletingPhotoId(null);
-    };
+    alert(result.error ?? "Failed to delete album");
+    setDeletingAlbum(false);
+  };
 
-    return (
-        <div className="min-h-screen bg-background text-white p-8">
-            <div className="max-w-7xl mx-auto">
-                {/* Header */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-                    <div className="flex items-center gap-4">
-                        <Link
-                            href="/organizer"
-                            className="p-2 bg-zinc-800 rounded-full hover:bg-zinc-700 transition"
-                        >
-                            <ArrowLeft className="w-5 h-5 text-zinc-400" />
-                        </Link>
-                        <div>
-                            <h1 className="text-2xl font-bold flex items-center gap-2">
-                                <User className="text-cyan-400" />
-                                Person Details
-                            </h1>
-                            <p className="text-zinc-500 font-mono text-sm">ID: {person.id}</p>
-                        </div>
-                    </div>
+  const handleDeletePhoto = async (photoId: string) => {
+    if (!confirm("Delete this photo from the workspace?")) {
+      return;
+    }
 
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={handleCopyLink}
-                            className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg transition text-sm font-medium"
-                        >
-                            {copied ? <Check className="w-4 h-4 text-green-400" /> : <Share2 className="w-4 h-4" />}
-                            {copied ? "Copied Link" : "Share Album"}
-                        </button>
+    setDeletingPhotoId(photoId);
+    const result = await deletePhoto(photoId, workspaceId);
+    if (result.success) {
+      setPhotos((current) => current.filter((photo) => photo.id !== photoId));
+      router.refresh();
+    } else {
+      alert(result.error ?? "Failed to delete photo");
+    }
+    setDeletingPhotoId(null);
+  };
 
-                        <button
-                            onClick={handleDeleteAlbum}
-                            disabled={deletingAlbum}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 rounded-lg transition text-sm font-medium disabled:opacity-50"
-                        >
-                            <Trash2 className="w-4 h-4" />
-                            {deletingAlbum ? "Deleting..." : "Delete Album"}
-                        </button>
-                    </div>
-                </div>
-
-                {/* Stats */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-                    <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-xl">
-                        <div className="text-3xl font-bold text-white mb-1">{photos.length}</div>
-                        <div className="text-xs text-zinc-500 uppercase tracking-widest flex items-center gap-2">
-                            <ImageIcon className="w-4 h-4" /> Photos Found
-                        </div>
-                    </div>
-                </div>
-
-                {/* Gallery */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                    {photos.map((photo) => (
-                        <div key={photo.id} className="group relative aspect-square bg-zinc-900 rounded-lg overflow-hidden border border-zinc-800 hover:border-cyan-500/50 transition-all">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                                src={photo.url}
-                                alt="Event Photo"
-                                className={`object-cover w-full h-full transition-opacity ${deletingPhotoId === photo.id ? 'opacity-20' : 'opacity-80 group-hover:opacity-100'}`}
-                            />
-
-                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
-                                <button
-                                    onClick={() => handleDeletePhoto(photo.id)}
-                                    disabled={deletingPhotoId === photo.id}
-                                    className="p-1.5 bg-red-500/80 hover:bg-red-600 text-white rounded-md shadow-lg backdrop-blur-sm transition"
-                                    title="Delete Photo"
-                                >
-                                    <Trash2 className="w-4 h-4" />
-                                </button>
-                            </div>
-
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2 pointer-events-none">
-                                <a
-                                    href={photo.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-xs text-white hover:underline truncate w-full pointer-events-auto flex items-center gap-1"
-                                >
-                                    <ExternalLink className="w-3 h-3" /> View Full
-                                </a>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-
-                {photos.length === 0 && (
-                    <div className="text-center py-20 text-zinc-500">
-                        No photos found for this person.
-                    </div>
-                )}
+  return (
+    <div className="min-h-screen px-4 py-8 text-slate-950 md:px-8">
+      <div className="mx-auto max-w-7xl space-y-8">
+        <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
+          <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+            <div className="flex items-center gap-4">
+              <Link
+                href={`/organizer?workspace=${workspaceSlug}`}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-slate-50 transition hover:bg-white"
+              >
+                <ArrowLeft className="h-5 w-5 text-slate-700" />
+              </Link>
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-[0.24em] text-slate-400">{workspaceName}</div>
+                <h1 className="flex items-center gap-2 text-3xl font-semibold tracking-tight text-slate-950">
+                  <User className="h-6 w-6 text-slate-500" />
+                  {person.name || "Detected guest group"}
+                </h1>
+                <p className="text-sm text-slate-500">
+                  {photos.length} photo{photos.length === 1 ? "" : "s"} across {person.faceCount} recognized face match
+                  {person.faceCount === 1 ? "" : "es"}.
+                </p>
+              </div>
             </div>
+
+            {canManage && (
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleDeleteAlbum}
+                  disabled={deletingAlbum}
+                  className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-50"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {deletingAlbum ? "Deleting..." : "Delete guest group"}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-    );
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+            <div className="text-3xl font-semibold text-slate-950">{photos.length}</div>
+            <div className="mt-1 flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-400">
+              <ImageIcon className="h-4 w-4" />
+              Photos surfaced
+            </div>
+          </div>
+          <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+            <div className="text-3xl font-semibold text-slate-950">{person.faceCount}</div>
+            <div className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">Face matches kept in album</div>
+          </div>
+          <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+            <div className="text-3xl font-semibold text-slate-950">{workspaceName}</div>
+            <div className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">Active workspace</div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+          {photos.map((photo) => (
+            <div
+              key={photo.id}
+              className="group relative aspect-square overflow-hidden rounded-[1.4rem] border border-slate-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.05)]"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={photo.url}
+                alt="Matched workspace photo"
+                className={`h-full w-full object-cover transition duration-500 ${deletingPhotoId === photo.id ? "opacity-20" : "group-hover:scale-105"}`}
+              />
+
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-transparent to-transparent opacity-70" />
+
+              <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 p-3">
+                <a
+                  href={photo.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 rounded-full bg-white/90 px-3 py-1.5 text-xs font-medium text-slate-700 backdrop-blur-md"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Open
+                </a>
+                {canManage && (
+                  <button
+                    type="button"
+                    onClick={() => handleDeletePhoto(photo.id)}
+                    disabled={deletingPhotoId === photo.id}
+                    className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 backdrop-blur-md transition hover:bg-red-100"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    {deletingPhotoId === photo.id ? "Removing..." : "Delete"}
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {photos.length === 0 && (
+          <div className="rounded-[1.75rem] border border-dashed border-slate-200 bg-white px-6 py-16 text-center text-slate-500">
+            No photos are still attached to this guest group.
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }

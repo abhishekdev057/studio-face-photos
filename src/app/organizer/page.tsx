@@ -1,138 +1,446 @@
+import { redirect } from "next/navigation";
+import { Camera, ExternalLink, FolderKanban, Image as ImageIcon, Shield, Users } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth";
+import {
+  canManageWorkspace,
+  canUploadWorkspace,
+  getAccessibleWorkspaces,
+  getOrCreateWorkspacePublicLink,
+  getWorkspaceForUserBySlug,
+  isAdmin,
+} from "@/lib/workspaces";
 import UploadForm from "@/components/UploadForm";
 import PersonCard from "@/components/PersonCard";
 import ResetButton from "@/components/ResetButton";
 import PhotoGrid from "@/components/PhotoGrid";
-import Link from "next/link";
-import { User, Image as ImageIcon, Sparkles, LayoutGrid } from "lucide-react";
+import WorkspaceCreateForm from "@/components/WorkspaceCreateForm";
+import WorkspaceAccessManager from "@/components/WorkspaceAccessManager";
+import CopyLinkButton from "@/components/CopyLinkButton";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
-export default async function OrganizerPage() {
-    let stats = { photos: 0, people: 0 };
-    let people: any[] = [];
-    let allPhotos: any[] = [];
+interface OrganizerPageProps {
+  searchParams: Promise<{ workspace?: string | string[] }>;
+}
 
-    try {
-        stats.photos = await prisma.photo.count();
-        stats.people = await prisma.person.count();
+function formatRole(role: string) {
+  return role.charAt(0) + role.slice(1).toLowerCase();
+}
 
-        const [fetchedPeople, fetchedPhotos] = await Promise.all([
-            prisma.person.findMany({
-                take: 50,
-                orderBy: { createdAt: 'desc' },
-                include: {
-                    faces: {
-                        take: 1,
-                        include: { photo: true }
-                    }
-                }
-            }),
-            prisma.photo.findMany({
-                orderBy: { createdAt: 'desc' },
-                take: 500 // Limit for performance, maybe implement pagination later
-            })
-        ]);
+function formatGlobalRole(role: string) {
+  if (role === "ADMIN") {
+    return "System admin";
+  }
 
-        people = fetchedPeople;
-        allPhotos = fetchedPhotos;
+  if (role === "ORGANIZER") {
+    return "Organizer";
+  }
 
-    } catch (e) {
-        console.error("DB Error:", e);
-    }
+  return "Viewer";
+}
 
-    return (
-        <div className="min-h-screen p-6 md:p-8 space-y-8 max-w-7xl mx-auto animate-enter">
-            {/* Header */}
-            <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div>
-                    <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-600 mb-2">
-                        Event Dashboard
-                    </h1>
-                    <p className="text-zinc-400">Manage your collection and view AI insights.</p>
-                </div>
+export default async function OrganizerPage({ searchParams }: OrganizerPageProps) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    redirect("/login");
+  }
+  if (session.user.role === "VIEWER") {
+    redirect("/guest");
+  }
 
-                <div className="flex flex-wrap items-center gap-3">
-                    <ResetButton />
-                    <Link href="/guest" className="glass-button px-4 py-2 rounded-lg text-sm text-zinc-300 flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-yellow-400" />
-                        Simulate Guest View
-                    </Link>
-                </div>
-            </header>
+  const workspaces = await getAccessibleWorkspaces(session.user.id, session.user.role);
+  const params = await searchParams;
+  const requestedWorkspace =
+    typeof params.workspace === "string" && params.workspace.length > 0
+      ? params.workspace
+      : undefined;
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="glass-panel p-6 rounded-2xl flex items-center justify-between group hover:border-cyan-500/30 transition-colors">
-                    <div>
-                        <p className="text-zinc-500 text-sm font-medium uppercase tracking-wider mb-1">Total Photos</p>
-                        <h2 className="text-4xl font-bold text-white group-hover:text-cyan-400 transition-colors">{stats.photos}</h2>
-                    </div>
-                    <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center group-hover:bg-cyan-500/20 transition-colors">
-                        <ImageIcon className="w-6 h-6 text-zinc-400 group-hover:text-cyan-400 transition-colors" />
-                    </div>
-                </div>
+  const activeWorkspaceSlug = requestedWorkspace ?? workspaces[0]?.slug;
+  const activeWorkspace = activeWorkspaceSlug
+    ? await getWorkspaceForUserBySlug({
+        slug: activeWorkspaceSlug,
+        userId: session.user.id,
+        globalRole: session.user.role,
+      })
+    : null;
 
-                <div className="glass-panel p-6 rounded-2xl flex items-center justify-between group hover:border-blue-500/30 transition-colors">
-                    <div>
-                        <p className="text-zinc-500 text-sm font-medium uppercase tracking-wider mb-1">Unqiue People</p>
-                        <h2 className="text-4xl font-bold text-white group-hover:text-blue-400 transition-colors">{stats.people}</h2>
-                    </div>
-                    <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
-                        <User className="w-6 h-6 text-zinc-400 group-hover:text-blue-400 transition-colors" />
-                    </div>
-                </div>
+  const currentMembershipRole =
+    activeWorkspace?.members.find((member) => member.user.id === session.user.id)?.role ?? null;
+  const canManageActiveWorkspace = Boolean(
+    activeWorkspace &&
+      canManageWorkspace({
+        globalRole: session.user.role,
+        ownerId: activeWorkspace.ownerId,
+        userId: session.user.id,
+        membershipRole: currentMembershipRole,
+      }),
+  );
+  const canUploadActiveWorkspace = Boolean(
+    activeWorkspace &&
+      canUploadWorkspace({
+        globalRole: session.user.role,
+        ownerId: activeWorkspace.ownerId,
+        userId: session.user.id,
+        membershipRole: currentMembershipRole,
+      }),
+  );
+
+  const [people, photos, faceCount, noFaceCount, publicLink] = activeWorkspace
+    ? await Promise.all([
+        prisma.person.findMany({
+          where: { eventId: activeWorkspace.id },
+          take: 24,
+          orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+          include: {
+            faces: {
+              take: 1,
+              include: {
+                photo: {
+                  select: { url: true },
+                },
+              },
+            },
+            _count: {
+              select: { faces: true },
+            },
+          },
+        }),
+        prisma.photo.findMany({
+          where: { eventId: activeWorkspace.id },
+          orderBy: { createdAt: "desc" },
+          take: 150,
+          select: {
+            id: true,
+            url: true,
+            faceCount: true,
+          },
+        }),
+        prisma.face.count({
+          where: {
+            photo: {
+              eventId: activeWorkspace.id,
+            },
+          },
+        }),
+        prisma.photo.count({
+          where: {
+            eventId: activeWorkspace.id,
+            analysisStatus: "NO_FACE",
+          },
+        }),
+        getOrCreateWorkspacePublicLink(activeWorkspace.id),
+      ])
+    : [[], [], 0, 0, null];
+
+  const personCards = people.map((person) => ({
+    id: person.id,
+    name: person.name,
+    faceCount: person._count.faces,
+    coverUrl: person.faces[0]?.photo.url ?? null,
+  }));
+
+  const signedInName = session.user.name || session.user.email || "Organizer";
+  const workspaceAccessLabel = isAdmin(session.user.role)
+    ? "System admin access"
+    : currentMembershipRole
+      ? formatRole(currentMembershipRole)
+      : formatGlobalRole(session.user.role);
+
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-8 md:px-8">
+      <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <aside className="space-y-6 xl:sticky xl:top-24 xl:self-start">
+          <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.08)]">
+            <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-slate-600">
+              <FolderKanban className="h-3.5 w-3.5" />
+              Control room
             </div>
 
-            {/* Content Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                {/* Left: Upload Section */}
-                <div className="lg:col-span-4 space-y-6">
-                    <div className="glass-panel p-1 rounded-2xl">
-                        <UploadForm />
-                    </div>
-                </div>
+            <div className="mt-5 space-y-3">
+              <h1 className="text-3xl font-semibold tracking-tight text-slate-950">Organizer workspace</h1>
+              <p className="text-sm leading-6 text-slate-500">
+                Upload, review faces, and share one secure guest link.
+              </p>
+            </div>
 
-                {/* Right: Detected People & All Photos */}
-                <div className="lg:col-span-8 space-y-12">
-                    {/* Recognized People Section */}
-                    <div className="space-y-6">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-xl font-bold flex items-center gap-2">
-                                <LayoutGrid className="text-cyan-400 w-5 h-5" />
-                                Recognized Guests
-                            </h3>
-                            <span className="text-xs text-zinc-500 bg-zinc-900 px-2 py-1 rounded border border-zinc-800">
-                                Recent Activity
-                            </span>
+            <div className="mt-6 rounded-[1.6rem] bg-slate-950 p-5 text-white">
+              <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Signed in</div>
+              <div className="mt-2 text-lg font-semibold">{signedInName}</div>
+              <div className="mt-1 text-sm text-slate-300">{session.user.email}</div>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              <div className="rounded-[1.4rem] border border-slate-200 bg-slate-50 p-4">
+                <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Workspaces</div>
+                <div className="mt-2 text-3xl font-semibold text-slate-950">{workspaces.length}</div>
+              </div>
+              <div className="rounded-[1.4rem] border border-slate-200 bg-slate-50 p-4">
+                <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Role</div>
+                <div className="mt-2 text-lg font-semibold text-slate-950">
+                  {formatGlobalRole(session.user.role)}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <WorkspaceCreateForm />
+
+          <section className="rounded-[2rem] border border-slate-200 bg-white p-4 shadow-[0_24px_60px_rgba(15,23,42,0.06)]">
+            <div className="flex items-center justify-between gap-3 px-2 pb-3">
+              <div>
+                <div className="text-sm font-semibold text-slate-950">Your workspaces</div>
+                <p className="text-sm text-slate-500">Pick one to manage.</p>
+              </div>
+              <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
+                {workspaces.length}
+              </div>
+            </div>
+
+            {workspaces.length === 0 ? (
+              <div className="rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                No workspace access yet.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {workspaces.map((workspace) => {
+                  const isActive = workspace.slug === activeWorkspace?.slug;
+                  const membershipRole = isAdmin(session.user.role)
+                    ? "ADMIN"
+                    : workspace.ownerId === session.user.id
+                      ? "OWNER"
+                      : workspace.members[0]?.role ?? "VIEWER";
+
+                  return (
+                    <a
+                      key={workspace.id}
+                      href={`/organizer?workspace=${workspace.slug}`}
+                      className={`block rounded-[1.5rem] border px-4 py-4 transition ${
+                        isActive
+                          ? "border-slate-950 bg-slate-950 text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)]"
+                          : "border-slate-200 bg-slate-50 text-slate-950 hover:border-slate-300 hover:bg-white"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold">{workspace.name}</div>
+                          <div
+                            className={`mt-1 text-xs uppercase tracking-[0.18em] ${
+                              isActive ? "text-slate-300" : "text-slate-400"
+                            }`}
+                          >
+                            {membershipRole === "ADMIN" ? "System admin" : formatRole(membershipRole)}
+                          </div>
                         </div>
+                        <div
+                          className={`rounded-full px-2.5 py-1 text-[11px] ${
+                            isActive ? "bg-white/10 text-slate-200" : "bg-white text-slate-500"
+                          }`}
+                        >
+                          {workspace._count.photos} photos
+                        </div>
+                      </div>
+                      <div
+                        className={`mt-3 flex items-center gap-4 text-xs ${
+                          isActive ? "text-slate-300" : "text-slate-500"
+                        }`}
+                      >
+                        <span>{workspace._count.people} guest groups</span>
+                        <span>{workspace._count.members} members</span>
+                      </div>
+                    </a>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </aside>
 
-
-                        {people.length === 0 ? (
-                            <div className="glass-panel p-12 rounded-2xl border-dashed border-2 border-zinc-800 flex flex-col items-center text-center space-y-4">
-                                <div className="w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center">
-                                    <User className="w-8 h-8 text-zinc-600" />
-                                </div>
-                                <div>
-                                    <h4 className="text-lg font-semibold text-zinc-300">No Guests Found Yet</h4>
-                                    <p className="text-zinc-500 max-w-xs mx-auto mt-2">Upload photos from your event. Our AI will automatically identify and group recurring faces here.</p>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                                {people.map(person => (
-                                    <PersonCard key={person.id} person={person} />
-                                ))}
-                            </div>
-                        )}
+        <main className="space-y-6">
+          {!activeWorkspace ? (
+            <section className="rounded-[2rem] border border-dashed border-slate-200 bg-white px-6 py-16 text-center shadow-[0_24px_60px_rgba(15,23,42,0.06)]">
+              <div className="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-950 text-white">
+                <Camera className="h-8 w-8" />
+              </div>
+              <h2 className="mt-6 text-3xl font-semibold text-slate-950">Create your first workspace</h2>
+              <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-slate-500">
+                Start one workspace per event, client, or gallery pipeline.
+              </p>
+            </section>
+          ) : (
+            <>
+              <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.08)]">
+                <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="space-y-3">
+                    <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-slate-600">
+                      Active workspace
                     </div>
-
-                    {/* All Photos Section */}
-                    <div className="space-y-6 border-t border-zinc-800 pt-8">
-                        <PhotoGrid photos={allPhotos} />
+                    <div>
+                      <h2 className="text-4xl font-semibold tracking-tight text-slate-950">
+                        {activeWorkspace.name}
+                      </h2>
+                      <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-500">
+                        {activeWorkspace.description ||
+                          "Original uploads, private matching, and one clean guest link."}
+                      </p>
                     </div>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                        Owner {activeWorkspace.owner.name || activeWorkspace.owner.email || "Unknown"}
+                      </div>
+                      <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                        {workspaceAccessLabel}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <a
+                      href={publicLink ? `/w/${publicLink.slug}` : "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-disabled={!publicLink}
+                      className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      Open guest link
+                    </a>
+                    {publicLink && (
+                      <CopyLinkButton
+                        path={`/w/${publicLink.slug}`}
+                        label="Copy guest link"
+                        copiedLabel="Guest link copied"
+                        className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
+                      />
+                    )}
+                    <CopyLinkButton
+                      path={`/organizer?workspace=${activeWorkspace.slug}`}
+                      label="Copy organizer link"
+                      copiedLabel="Organizer link copied"
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
+                    />
+                    {canManageActiveWorkspace && (
+                      <ResetButton workspaceId={activeWorkspace.id} workspaceName={activeWorkspace.name} />
+                    )}
+                  </div>
                 </div>
-            </div>
-        </div>
-    );
+              </section>
+
+              <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                {[
+                  {
+                    label: "Photos",
+                    value: activeWorkspace._count.photos,
+                    icon: ImageIcon,
+                  },
+                  {
+                    label: "Guest groups",
+                    value: activeWorkspace._count.people,
+                    icon: Users,
+                  },
+                  {
+                    label: "Recognized faces",
+                    value: faceCount,
+                    icon: Camera,
+                  },
+                  {
+                    label: "No-face uploads",
+                    value: noFaceCount,
+                    icon: FolderKanban,
+                  },
+                ].map((metric) => (
+                  <div
+                    key={metric.label}
+                    className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs uppercase tracking-[0.18em] text-slate-400">{metric.label}</div>
+                      <metric.icon className="h-4 w-4 text-slate-500" />
+                    </div>
+                    <div className="mt-4 text-4xl font-semibold text-slate-950">{metric.value}</div>
+                  </div>
+                ))}
+              </section>
+
+              <section className="grid gap-6 2xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+                {canUploadActiveWorkspace ? (
+                  <UploadForm workspaceId={activeWorkspace.id} workspaceName={activeWorkspace.name} />
+                ) : (
+                  <div className="rounded-[1.9rem] border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-[0_24px_60px_rgba(15,23,42,0.06)]">
+                    Upload access is limited to this workspace team.
+                  </div>
+                )}
+
+                {canManageActiveWorkspace ? (
+                  <WorkspaceAccessManager
+                    workspaceId={activeWorkspace.id}
+                    ownerId={activeWorkspace.ownerId}
+                    currentUserId={session.user.id}
+                    members={activeWorkspace.members.map((member) => ({
+                      userId: member.user.id,
+                      name: member.user.name,
+                      email: member.user.email,
+                      image: member.user.image,
+                      role: member.role,
+                    }))}
+                    invites={activeWorkspace.invites.map((invite) => ({
+                      id: invite.id,
+                      email: invite.email,
+                      role: invite.role,
+                      createdAt: invite.createdAt.toISOString(),
+                    }))}
+                  />
+                ) : (
+                  <div className="rounded-[1.9rem] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.06)]">
+                    <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-slate-600">
+                      <Shield className="h-3.5 w-3.5" />
+                      Access
+                    </div>
+                    <div className="mt-4 text-lg font-semibold text-slate-950">Managed by owner or manager</div>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">
+                      Contributors can upload and review results here, but team access and reset actions stay locked.
+                    </p>
+                  </div>
+                )}
+              </section>
+
+              <section className="space-y-5">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-2xl font-semibold text-slate-950">Guest groups</h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Matched clusters inside {activeWorkspace.name}.
+                    </p>
+                  </div>
+                  <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
+                    {personCards.length} shown
+                  </div>
+                </div>
+
+                {personCards.length === 0 ? (
+                  <div className="rounded-[1.8rem] border border-dashed border-slate-200 bg-white px-6 py-14 text-center text-slate-500 shadow-[0_24px_60px_rgba(15,23,42,0.05)]">
+                    No guest groups yet.
+                  </div>
+                ) : (
+                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    {personCards.map((person) => (
+                      <PersonCard
+                        key={person.id}
+                        workspaceId={activeWorkspace.id}
+                        workspaceSlug={activeWorkspace.slug}
+                        person={person}
+                        canManage={canManageActiveWorkspace}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <PhotoGrid photos={photos} />
+            </>
+          )}
+        </main>
+      </div>
+    </div>
+  );
 }

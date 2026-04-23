@@ -8,7 +8,7 @@ export const prisma =
     datasourceUrl: process.env.POSTGRES_PRISMA_URL
       ? process.env.POSTGRES_PRISMA_URL + (process.env.POSTGRES_PRISMA_URL.includes("?") ? "&" : "?") + "connection_limit=10&pool_timeout=30"
       : undefined,
-    log: ["query"],
+    log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
   });
 
 

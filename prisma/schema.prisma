@@ -3,8 +3,6 @@ generator client {
   previewFeatures = ["postgresqlExtensions"]
 }
 
-
-
 // Production Configuration (Neon DB)
 datasource db {
   provider   = "postgresql"
@@ -12,35 +10,40 @@ datasource db {
   extensions = [vector]
 }
 
-
-
 model Event {
-  id        String      @id @default(cuid())
+  id          String       @id @default(cuid())
   name      String
-  ownerId   String
-  owner     User     @relation(fields: [ownerId], references: [id])
-  createdAt DateTime @default(now())
-  photos    Photo[]
-  people    Person[]
-  links     ShareLink[]
+  slug        String       @unique @default(cuid())
+  description String?
+  ownerId     String
+  owner       User         @relation("OwnedEvents", fields: [ownerId], references: [id])
+  members     EventMember[]
+  invites     EventInvite[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @default(now()) @updatedAt
+  photos      Photo[]
+  people      Person[]
+  links       ShareLink[]
+
+  @@index([ownerId])
 }
 
-
 model User {
-  id            String    @id @default(cuid())
+  id            String         @id @default(cuid())
   name          String?
-  email         String?   @unique
+  email         String?        @unique
   emailVerified DateTime?
   image         String?
-  role          Role      @default(VIEWER)
+  role          Role           @default(VIEWER)
   accounts      Account[]
   sessions      Session[]
-  
-  // Custom Relation
-  events        Event[]
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  ownedEvents   Event[]        @relation("OwnedEvents")
+  memberships   EventMember[]
+  sentInvites   EventInvite[]  @relation("EventInviteAuthor")
+  claimedInvites EventInvite[] @relation("EventInviteClaimant")
+  uploadedPhotos Photo[]       @relation("UploadedPhotos")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 }
 
 model Account {
@@ -84,27 +87,51 @@ enum Role {
   VIEWER
 }
 
-
+enum WorkspaceRole {
+  OWNER
+  MANAGER
+  CONTRIBUTOR
+  VIEWER
+}
 
 model Photo {
-  id        String   @id @default(cuid())
-  url       String
-  width     Int
-  height    Int
-  hash      String?  @default("") // SHA-256 hash for deduplication
-  eventId   String
-  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  faces     Face[]
-  createdAt DateTime @default(now())
+  id             String         @id @default(cuid())
+  url            String
+  width          Int
+  height         Int
+  hash           String?        @default("") // SHA-256 hash for deduplication
+  faceCount      Int            @default(0)
+  analysisStatus AnalysisStatus @default(QUEUED)
+  analyzedAt     DateTime?
+  eventId        String
+  uploadedById   String?
+  event          Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  uploadedBy     User?          @relation("UploadedPhotos", fields: [uploadedById], references: [id], onDelete: SetNull)
+  faces          Face[]
+  createdAt      DateTime       @default(now())
+
+  @@index([eventId, createdAt])
+  @@index([eventId, hash])
+}
+
+enum AnalysisStatus {
+  QUEUED
+  PROCESSED
+  NO_FACE
+  FAILED
 }
 
 model Face {
-  id        String                 @id @default(cuid())
+  id        String                    @id @default(cuid())
   photoId   String
-  photo     Photo                  @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  photo     Photo                     @relation(fields: [photoId], references: [id], onDelete: Cascade)
   embedding Unsupported("vector(128)")? 
-  personId  String?
-  person    Person?                @relation(fields: [personId], references: [id])
+  personId   String?
+  person     Person?                  @relation(fields: [personId], references: [id], onDelete: SetNull)
+  createdAt  DateTime                 @default(now())
+
+  @@index([photoId])
+  @@index([personId])
 }
 
 
@@ -117,6 +144,8 @@ model Person {
   coverPhotoId String?  // ID of a representative photo/face
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  @@index([eventId, createdAt])
 }
 
 model ShareLink {
@@ -134,4 +163,36 @@ enum LinkType {
   ALL
   SPECIFIC
   SELECTION
+}
+
+model EventMember {
+  id        String        @id @default(cuid())
+  eventId    String
+  userId     String
+  role       WorkspaceRole @default(CONTRIBUTOR)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  event      Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([userId, role])
+}
+
+model EventInvite {
+  id          String        @id @default(cuid())
+  eventId      String
+  email        String
+  role         WorkspaceRole @default(VIEWER)
+  invitedById  String
+  claimedById  String?
+  claimedAt    DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  event        Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  invitedBy    User          @relation("EventInviteAuthor", fields: [invitedById], references: [id], onDelete: Cascade)
+  claimedBy    User?         @relation("EventInviteClaimant", fields: [claimedById], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, email])
+  @@index([email])
 }

@@ -1,149 +1,130 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { X, ChevronLeft, ChevronRight, Check, Image as ImageIcon } from "lucide-react";
+import { useEffect, useState } from "react";
+import { X, ChevronLeft, ChevronRight, Image as ImageIcon } from "lucide-react";
 
 interface Photo {
-    id: string;
-    url: string;
+  id: string;
+  url: string;
+  faceCount: number;
 }
 
 interface PhotoGridProps {
-    photos: Photo[];
+  photos: Photo[];
 }
 
 export default function PhotoGrid({ photos }: PhotoGridProps) {
-    const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
-    // Navigation handlers
-    const nextPhoto = useCallback(() => {
-        setLightboxIndex((prev) => (prev !== null && prev < photos.length - 1 ? prev + 1 : prev));
-    }, [photos.length]);
+  useEffect(() => {
+    if (lightboxIndex === null) {
+      return;
+    }
 
-    const prevPhoto = useCallback(() => {
-        setLightboxIndex((prev) => (prev !== null && prev > 0 ? prev - 1 : prev));
-    }, []);
-
-    // Keyboard support
-    useEffect(() => {
-        if (lightboxIndex === null) return;
-
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "ArrowRight") nextPhoto();
-            if (e.key === "ArrowLeft") prevPhoto();
-            if (e.key === "Escape") setLightboxIndex(null);
-        };
-
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [lightboxIndex, nextPhoto, prevPhoto]);
-
-    // Selection toggle
-    const toggleSelection = (e: React.MouseEvent, id: string) => {
-        e.stopPropagation();
-        const newSet = new Set(selectedIds);
-        if (newSet.has(id)) newSet.delete(id);
-        else newSet.add(id);
-        setSelectedIds(newSet);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "ArrowRight") {
+        setLightboxIndex((current) =>
+          current !== null && current < photos.length - 1 ? current + 1 : current,
+        );
+      }
+      if (event.key === "ArrowLeft") {
+        setLightboxIndex((current) => (current !== null && current > 0 ? current - 1 : current));
+      }
+      if (event.key === "Escape") {
+        setLightboxIndex(null);
+      }
     };
 
-    return (
-        <div className="space-y-4">
-            <h3 className="text-xl font-bold flex items-center gap-2 text-white">
-                <ImageIcon className="text-blue-400 w-5 h-5" />
-                All Photos ({photos.length})
-            </h3>
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [lightboxIndex, photos.length]);
 
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
-                {photos.map((photo, index) => {
-                    const isSelected = selectedIds.has(photo.id);
-                    return (
-                        <div
-                            key={photo.id}
-                            className={`relative aspect-square group cursor-pointer overflow-hidden rounded-lg bg-zinc-900 border-2 transition-colors ${isSelected ? 'border-cyan-500' : 'border-transparent'}`}
-                            onClick={() => setLightboxIndex(index)}
-                        >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                                src={photo.url}
-                                alt=""
-                                loading="lazy"
-                                className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${isSelected ? 'opacity-80' : ''}`}
-                            />
-
-                            {/* Selection Checkbox */}
-                            <button
-                                onClick={(e) => toggleSelection(e, photo.id)}
-                                className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center border transition-all z-10 
-                                    ${isSelected ? 'bg-cyan-500 border-cyan-500 text-white' : 'bg-black/40 border-white/50 text-transparent hover:border-white'}`}
-                            >
-                                <Check className="w-3 h-3" />
-                            </button>
-
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-                        </div>
-                    );
-                })}
-            </div>
-
-            {/* Lightbox */}
-            {lightboxIndex !== null && (
-                <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center animate-in fade-in duration-200">
-                    {/* Close Button */}
-                    <button
-                        onClick={() => setLightboxIndex(null)}
-                        className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white/70 hover:text-white transition-colors z-50"
-                    >
-                        <X className="w-6 h-6" />
-                    </button>
-
-                    {/* Navigation Buttons */}
-                    <button
-                        onClick={(e) => { e.stopPropagation(); prevPhoto(); }}
-                        disabled={lightboxIndex === 0}
-                        className="absolute left-4 p-4 text-white/50 hover:text-white disabled:opacity-20 hover:bg-white/5 rounded-full transition-all"
-                    >
-                        <ChevronLeft className="w-10 h-10" />
-                    </button>
-
-                    <button
-                        onClick={(e) => { e.stopPropagation(); nextPhoto(); }}
-                        disabled={lightboxIndex === photos.length - 1}
-                        className="absolute right-4 p-4 text-white/50 hover:text-white disabled:opacity-20 hover:bg-white/5 rounded-full transition-all"
-                    >
-                        <ChevronRight className="w-10 h-10" />
-                    </button>
-
-                    {/* Main Image */}
-                    <div className="relative max-w-7xl max-h-[90vh] p-4 flex flex-col items-center gap-4">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                            src={photos[lightboxIndex].url}
-                            alt=""
-                            className="max-h-[80vh] w-auto max-w-full rounded-md shadow-2xl object-contain"
-                        />
-
-                        {/* Toolbar in Lightbox */}
-                        <div className="flex items-center gap-4">
-                            <span className="text-zinc-500 font-mono text-sm">
-                                {lightboxIndex + 1} / {photos.length}
-                            </span>
-
-                            <button
-                                onClick={(e) => toggleSelection(e, photos[lightboxIndex].id)}
-                                className={`px-4 py-2 rounded-full border flex items-center gap-2 text-sm font-medium transition-colors
-                                    ${selectedIds.has(photos[lightboxIndex].id)
-                                        ? 'bg-cyan-500 border-cyan-500 text-black'
-                                        : 'border-zinc-700 text-zinc-300 hover:border-zinc-500'}`}
-                            >
-                                <Check className="w-4 h-4" />
-                                {selectedIds.has(photos[lightboxIndex].id) ? 'Selected' : 'Select for Album'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+  return (
+    <section className="space-y-4 rounded-[1.9rem] border border-slate-200 bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.06)]">
+      <div className="flex items-center justify-between gap-4">
+        <h3 className="flex items-center gap-2 text-xl font-semibold text-slate-950">
+          <ImageIcon className="h-5 w-5 text-slate-500" />
+          Workspace Gallery
+        </h3>
+        <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
+          {photos.length} photo{photos.length === 1 ? "" : "s"}
         </div>
-    );
+      </div>
+
+      {photos.length === 0 ? (
+        <div className="rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 px-6 py-14 text-center text-sm text-slate-500">
+          No photos uploaded yet.
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-5">
+          {photos.map((photo, index) => (
+            <button
+              key={photo.id}
+              type="button"
+              className="group relative aspect-square overflow-hidden rounded-[1.4rem] border border-slate-200 bg-slate-50 text-left"
+              onClick={() => setLightboxIndex(index)}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={photo.url}
+                alt=""
+                loading="lazy"
+                className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-transparent" />
+              <div className="absolute bottom-3 left-3 rounded-full bg-white/90 px-3 py-1 text-xs font-medium text-slate-700 backdrop-blur-md">
+                {photo.faceCount} face{photo.faceCount === 1 ? "" : "s"}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {lightboxIndex !== null && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 p-4 backdrop-blur-xl">
+          <button
+            onClick={() => setLightboxIndex(null)}
+            className="absolute right-6 top-6 rounded-full bg-white/10 p-3 text-white/70 transition hover:bg-white/20 hover:text-white"
+          >
+            <X className="h-6 w-6" />
+          </button>
+
+          <button
+            onClick={() =>
+              setLightboxIndex((current) => (current !== null && current > 0 ? current - 1 : current))
+            }
+            disabled={lightboxIndex === 0}
+            className="absolute left-4 rounded-full p-4 text-white/60 transition hover:bg-white/5 hover:text-white disabled:opacity-20"
+          >
+            <ChevronLeft className="h-10 w-10" />
+          </button>
+
+          <button
+            onClick={() =>
+              setLightboxIndex((current) =>
+                current !== null && current < photos.length - 1 ? current + 1 : current,
+              )
+            }
+            disabled={lightboxIndex === photos.length - 1}
+            className="absolute right-4 rounded-full p-4 text-white/60 transition hover:bg-white/5 hover:text-white disabled:opacity-20"
+          >
+            <ChevronRight className="h-10 w-10" />
+          </button>
+
+          <div className="flex max-h-[90vh] max-w-7xl flex-col items-center gap-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={photos[lightboxIndex].url}
+              alt=""
+              className="max-h-[80vh] max-w-full rounded-2xl object-contain shadow-2xl"
+            />
+            <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-300">
+              {lightboxIndex + 1} / {photos.length} • {photos[lightboxIndex].faceCount} detected face
+              {photos[lightboxIndex].faceCount === 1 ? "" : "s"}
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
 }

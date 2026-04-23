@@ -1,35 +1,46 @@
-"use client"
+"use client";
 
 import { useState } from "react";
-import { resetEventData } from "@/actions/reset";
+import { resetWorkspaceData } from "@/actions/reset";
 import { Trash2, RefreshCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-export default function ResetButton() {
-    const [loading, setLoading] = useState(false);
-    const router = useRouter();
+interface ResetButtonProps {
+  workspaceId: string;
+  workspaceName: string;
+}
 
-    const handleReset = async () => {
-        if (!confirm("DANGER: This will delete ALL photos, people, and albums from your event. \n\nUse this to clear stuck data or start fresh.\n\nAre you sure?")) return;
+export default function ResetButton({ workspaceId, workspaceName }: ResetButtonProps) {
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
-        setLoading(true);
-        const res = await resetEventData();
-        if (res.success) {
-            router.refresh();
-        } else {
-            alert("Failed to reset");
-        }
-        setLoading(false);
-    };
+  const handleReset = async () => {
+    if (
+      !confirm(
+        `This will remove every photo, detected face, and guest grouping from ${workspaceName}. Use this only when you want to start the workspace over from scratch.`,
+      )
+    ) {
+      return;
+    }
 
-    return (
-        <button
-            onClick={handleReset}
-            disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 rounded-lg text-sm font-medium transition disabled:opacity-50"
-        >
-            {loading ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-            {loading ? "Resetting..." : "Reset All Data"}
-        </button>
-    );
+    setLoading(true);
+    const result = await resetWorkspaceData(workspaceId);
+    if (result.success) {
+      router.refresh();
+    } else {
+      alert(result.error ?? "Failed to reset workspace");
+    }
+    setLoading(false);
+  };
+
+  return (
+    <button
+      onClick={handleReset}
+      disabled={loading}
+      className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-50"
+    >
+      {loading ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+      {loading ? "Resetting..." : "Reset workspace"}
+    </button>
+  );
 }
