@@ -1,9 +1,22 @@
-import * as faceapi from "face-api.js";
-
 const MODEL_SOURCES = ["/models"];
 let loadingPromise: Promise<void> | null = null;
+let faceApiModulePromise: Promise<typeof import("@vladmandic/face-api/dist/face-api.esm.js")> | null =
+  null;
+
+async function getFaceApi() {
+  if (typeof window === "undefined") {
+    throw new Error("Face engine is only available in the browser.");
+  }
+
+  if (!faceApiModulePromise) {
+    faceApiModulePromise = import("@vladmandic/face-api/dist/face-api.esm.js");
+  }
+
+  return faceApiModulePromise;
+}
 
 async function loadFromSource(modelUrl: string) {
+  const faceapi = await getFaceApi();
   await Promise.all([
     faceapi.nets.ssdMobilenetv1.loadFromUri(modelUrl),
     faceapi.nets.faceLandmark68Net.loadFromUri(modelUrl),
@@ -48,6 +61,8 @@ function loadImageElement(source: string) {
 }
 
 export async function imageFromSource(source: Blob | string) {
+  const faceapi = await getFaceApi();
+
   if (typeof source !== "string") {
     return faceapi.bufferToImage(source);
   }
@@ -103,6 +118,7 @@ export function filterReliableDetections<T extends DetectionLike>(
 export async function getFullFaceDescription(source: Blob | string) {
   try {
     await ensureFaceModels();
+    const faceapi = await getFaceApi();
     const image = await imageFromSource(source);
     const detections = await faceapi
       .detectAllFaces(image)
