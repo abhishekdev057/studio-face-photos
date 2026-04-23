@@ -32,8 +32,31 @@ export async function ensureFaceModels() {
   return loadingPromise;
 }
 
+function loadImageElement(source: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Unable to load image for face analysis."));
+
+    if (!source.startsWith("data:") && !source.startsWith("blob:")) {
+      image.crossOrigin = "anonymous";
+    }
+
+    image.src = source;
+  });
+}
+
 export async function imageFromSource(source: Blob | string) {
-  return typeof source === "string" ? faceapi.fetchImage(source) : faceapi.bufferToImage(source);
+  if (typeof source !== "string") {
+    return faceapi.bufferToImage(source);
+  }
+
+  if (source.startsWith("data:") || source.startsWith("blob:")) {
+    return loadImageElement(source);
+  }
+
+  return faceapi.fetchImage(source);
 }
 
 type DetectionLike = {
