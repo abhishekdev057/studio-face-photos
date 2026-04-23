@@ -7,6 +7,12 @@ export async function acquireWorkspaceFaceIndexLock(
   workspaceId: string,
 ) {
   await tx.$queryRaw`
-    SELECT pg_advisory_xact_lock(hashtext(${WORKSPACE_FACE_INDEX_LOCK}), hashtext(${workspaceId}))
+    SELECT 1 AS locked
+    FROM (
+      SELECT pg_advisory_xact_lock(
+        hashtext(${WORKSPACE_FACE_INDEX_LOCK}),
+        hashtext(${workspaceId})
+      )
+    ) AS workspace_lock
   `;
 }
