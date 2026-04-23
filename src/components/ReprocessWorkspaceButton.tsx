@@ -40,6 +40,7 @@ export default function ReprocessWorkspaceButton({
   const router = useRouter();
   const stopRef = useRef(false);
   const [running, setRunning] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [status, setStatus] = useState("Ready to rebuild");
   const [stats, setStats] = useState<ReprocessStats>({
     total: photos.length,
@@ -54,18 +55,16 @@ export default function ReprocessWorkspaceButton({
 
   const handleReprocess = async () => {
     if (photos.length === 0) {
-      alert("No photos to reprocess yet.");
+      setStatus("Add photos first, then rebuild the workspace index.");
       return;
     }
 
-    if (
-      !confirm(
-        `Reprocess ${photos.length} photo${photos.length === 1 ? "" : "s"} in ${workspaceName}? This rebuilds the face index with the current browser model.`,
-      )
-    ) {
+    if (!confirming) {
+      setConfirming(true);
       return;
     }
 
+    setConfirming(false);
     stopRef.current = false;
     setRunning(true);
     setStats({
@@ -144,16 +143,37 @@ export default function ReprocessWorkspaceButton({
           <p className="mt-1 text-sm text-slate-500">Rebuild face groups after model upgrades.</p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => void handleReprocess()}
-          disabled={running || photos.length === 0}
-          className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {running ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-          {running ? "Reprocessing" : "Reprocess images"}
-        </button>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {confirming && !running && (
+            <button
+              type="button"
+              onClick={() => setConfirming(false)}
+              className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-950"
+            >
+              Cancel
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => void handleReprocess()}
+            disabled={running || photos.length === 0}
+            className={`inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60 ${
+              confirming && !running
+                ? "border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                : "bg-slate-950 text-white hover:bg-slate-800"
+            }`}
+          >
+            {running ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+            {running ? "Reprocessing" : confirming ? "Confirm reprocess" : "Reprocess images"}
+          </button>
+        </div>
       </div>
+
+      {confirming && !running && (
+        <div className="mt-4 rounded-[1.3rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Rebuild {photos.length} photo{photos.length === 1 ? "" : "s"} in {workspaceName} with the current model.
+        </div>
+      )}
 
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
         <div className="rounded-[1.3rem] bg-slate-50 p-4">

@@ -33,15 +33,21 @@ export default function PersonDetailClient({
 }: PersonDetailClientProps) {
   const [photos, setPhotos] = useState(initialPhotos);
   const [deletingAlbum, setDeletingAlbum] = useState(false);
+  const [confirmingAlbumDelete, setConfirmingAlbumDelete] = useState(false);
   const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
+  const [confirmingPhotoDeleteId, setConfirmingPhotoDeleteId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const router = useRouter();
 
   const handleDeleteAlbum = async () => {
-    if (!confirm("Delete this guest group and remove all its matched album entries?")) {
+    if (!confirmingAlbumDelete) {
+      setConfirmingAlbumDelete(true);
+      setActionError(null);
       return;
     }
 
     setDeletingAlbum(true);
+    setConfirmingAlbumDelete(false);
     const result = await deletePerson(person.id, workspaceId);
     if (result.success) {
       router.push(`/organizer?workspace=${workspaceSlug}`);
@@ -49,22 +55,25 @@ export default function PersonDetailClient({
       return;
     }
 
-    alert(result.error ?? "Failed to delete album");
+    setActionError(result.error ?? "Failed to delete album");
     setDeletingAlbum(false);
   };
 
   const handleDeletePhoto = async (photoId: string) => {
-    if (!confirm("Delete this photo from the workspace?")) {
+    if (confirmingPhotoDeleteId !== photoId) {
+      setConfirmingPhotoDeleteId(photoId);
+      setActionError(null);
       return;
     }
 
     setDeletingPhotoId(photoId);
+    setConfirmingPhotoDeleteId(null);
     const result = await deletePhoto(photoId, workspaceId);
     if (result.success) {
       setPhotos((current) => current.filter((photo) => photo.id !== photoId));
       router.refresh();
     } else {
-      alert(result.error ?? "Failed to delete photo");
+      setActionError(result.error ?? "Failed to delete photo");
     }
     setDeletingPhotoId(null);
   };
@@ -96,18 +105,42 @@ export default function PersonDetailClient({
 
             {canManage && (
               <div className="flex flex-wrap items-center gap-3">
+                {confirmingAlbumDelete && !deletingAlbum && (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingAlbumDelete(false)}
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
+                  >
+                    Cancel
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleDeleteAlbum}
                   disabled={deletingAlbum}
-                  className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-50"
+                  className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition disabled:opacity-50 ${
+                    confirmingAlbumDelete
+                      ? "border border-red-300 bg-red-100 text-red-800 hover:bg-red-200"
+                      : "border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                  }`}
                 >
                   <Trash2 className="h-4 w-4" />
-                  {deletingAlbum ? "Deleting..." : "Delete guest group"}
+                  {deletingAlbum ? "Deleting..." : confirmingAlbumDelete ? "Confirm delete" : "Delete guest group"}
                 </button>
               </div>
             )}
           </div>
+
+          {(confirmingAlbumDelete || actionError) && (
+            <div className="mt-4">
+              {confirmingAlbumDelete && !deletingAlbum && (
+                <div className="rounded-[1.2rem] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  This removes the guest group and its matched album entries from {workspaceName}.
+                </div>
+              )}
+              {actionError && <div className="mt-3 text-sm text-red-600">{actionError}</div>}
+            </div>
+          )}
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
@@ -154,15 +187,34 @@ export default function PersonDetailClient({
                   Open
                 </a>
                 {canManage && (
-                  <button
-                    type="button"
-                    onClick={() => handleDeletePhoto(photo.id)}
-                    disabled={deletingPhotoId === photo.id}
-                    className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 backdrop-blur-md transition hover:bg-red-100"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    {deletingPhotoId === photo.id ? "Removing..." : "Delete"}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {confirmingPhotoDeleteId === photo.id && deletingPhotoId !== photo.id && (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmingPhotoDeleteId(null)}
+                        className="inline-flex items-center gap-1 rounded-full border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-md transition hover:bg-white/20"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleDeletePhoto(photo.id)}
+                      disabled={deletingPhotoId === photo.id}
+                      className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium backdrop-blur-md transition ${
+                        confirmingPhotoDeleteId === photo.id
+                          ? "border border-red-300 bg-red-100 text-red-800 hover:bg-red-200"
+                          : "border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                      }`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      {deletingPhotoId === photo.id
+                        ? "Removing..."
+                        : confirmingPhotoDeleteId === photo.id
+                          ? "Confirm"
+                          : "Delete"}
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

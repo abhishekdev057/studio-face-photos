@@ -202,7 +202,7 @@ export default function UploadForm({ workspaceId, workspaceName }: UploadFormPro
     }
 
     if (modelStatus !== "ready") {
-      alert("Face engine is still loading.");
+      addLog("Face engine is still loading. Give it a moment, then try again.");
       return;
     }
 

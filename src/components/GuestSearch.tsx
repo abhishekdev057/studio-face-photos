@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import Webcam from "react-webcam";
-import { Camera, Download, Eye, Loader2, ScanFace, Sparkles, X } from "lucide-react";
+import { AlertCircle, Camera, Download, Eye, Loader2, ScanFace, Sparkles, X } from "lucide-react";
+import { createCameraSearchVariants } from "@/utils/image";
 import {
   ensureFaceModels,
   filterReliableDetections,
@@ -60,6 +61,7 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [status, setStatus] = useState("Loading face engine...");
 
   useEffect(() => {
@@ -85,7 +87,9 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
   }, []);
 
   const statusTone = modelLoaded
-    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+    ? errorMessage
+      ? "border-amber-200 bg-amber-50 text-amber-700"
+      : "border-emerald-200 bg-emerald-50 text-emerald-700"
     : status.toLowerCase().includes("failed")
       ? "border-red-200 bg-red-50 text-red-700"
       : "border-slate-200 bg-slate-50 text-slate-500";
@@ -96,6 +100,8 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
     setPreviewImage(null);
     setCameraOpen(false);
     setSearching(false);
+    setErrorMessage(null);
+    setStatus(modelLoaded ? "Camera ready" : "Loading face engine...");
   };
 
   const performSearch = async (descriptor: number[]) => {
@@ -137,51 +143,84 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
   };
 
   const processImage = async (imageSource: string) => {
+    setErrorMessage(null);
     setSearching(true);
     setCameraOpen(false);
     setPreviewImage(imageSource);
+    setStatus("Reading camera frame...");
+
+    let matched = false;
 
     try {
-      const { image, detections } = await getFullFaceDescription(imageSource);
-      const reliableDetections = filterReliableDetections(detections, {
-        imageWidth: image.width,
-        imageHeight: image.height,
-        minScore: 0.72,
-        minAbsoluteFaceSize: 64,
-        minRelativeFaceSize: 0.07,
-      });
+      const variants = await createCameraSearchVariants(imageSource);
+      let multipleFacesSeen = false;
+      let bestDescriptor: number[] | null = null;
 
-      if (reliableDetections.length === 0) {
-        throw new Error("No clear face found. Try a brighter, front-facing selfie.");
+      for (const [index, variant] of variants.entries()) {
+        setStatus(index === 0 ? "Scanning live frame..." : "Refining camera scan...");
+
+        try {
+          const { image, detections } = await getFullFaceDescription(variant);
+          const reliableDetections = filterReliableDetections(detections, {
+            imageWidth: image.width,
+            imageHeight: image.height,
+            minScore: index <= 1 ? 0.62 : 0.5,
+            minAbsoluteFaceSize: index <= 1 ? 48 : 34,
+            minRelativeFaceSize: index <= 1 ? 0.04 : 0.024,
+          });
+
+          if (reliableDetections.length > 1) {
+            multipleFacesSeen = true;
+          }
+
+          const primaryDetection = pickPrimaryDetection(reliableDetections);
+          if (primaryDetection) {
+            bestDescriptor = Array.from(primaryDetection.descriptor);
+            break;
+          }
+        } catch (variantError) {
+          console.error("Camera scan variant failed:", variantError);
+        }
       }
 
-      const primaryDetection = pickPrimaryDetection(reliableDetections);
-      if (!primaryDetection) {
-        throw new Error("Use a photo with one face only, or keep your face much closer than everyone else.");
+      if (!bestDescriptor) {
+        throw new Error(
+          multipleFacesSeen
+            ? "More than one face is visible. Keep only your face in the camera."
+            : "Face not clear enough. Move closer, keep the camera at eye level, and avoid backlight.",
+        );
       }
 
-      await performSearch(Array.from(primaryDetection.descriptor));
+      setStatus("Matching your photos...");
+      await performSearch(bestDescriptor);
+      setStatus("Match ready");
+      matched = true;
     } catch (error) {
       console.error(error);
-      alert(
+      setErrorMessage(
         error instanceof Error
           ? error.message
-          : "We couldn't finish the selfie match. Please try again.",
+          : "We couldn't finish the camera scan. Please try again.",
       );
+      setStatus("Camera ready");
     } finally {
       setSearching(false);
       setPreviewImage(null);
+      if (!matched) {
+        setCameraOpen(true);
+      }
     }
   };
 
   const handleCapture = async () => {
     if (!modelLoaded) {
-      alert("Face engine is still loading.");
+      setErrorMessage("Face engine is still loading.");
       return;
     }
 
     const imageSrc = webcamRef.current?.getScreenshot();
     if (!imageSrc) {
+      setErrorMessage("Camera frame not available. Please try again.");
       return;
     }
 
@@ -220,7 +259,7 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
           <div className="space-y-2 p-6 pb-0 lg:p-8 lg:pb-0">
             <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-slate-600">
               <ScanFace className="h-3.5 w-3.5" />
-              Live selfie access
+              Live camera access
             </div>
             <h1 className="text-4xl font-semibold tracking-tight">Scan your face</h1>
             <p className="text-sm text-slate-500">
@@ -240,7 +279,14 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
                 ref={webcamRef}
                 audio={false}
                 screenshotFormat="image/jpeg"
-                videoConstraints={{ facingMode: "user" }}
+                forceScreenshotSourceSize
+                mirrored
+                screenshotQuality={1}
+                videoConstraints={{
+                  facingMode: "user",
+                  width: { ideal: 1280 },
+                  height: { ideal: 720 },
+                }}
                 className="aspect-[16/9] max-h-[620px] w-full object-cover"
               />
               <div className="pointer-events-none absolute inset-8 rounded-[2rem] border border-white/20" />
@@ -253,19 +299,27 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
                 <X className="h-5 w-5" />
               </button>
               <div className="absolute inset-x-0 bottom-6 flex justify-center">
-                <button
-                  type="button"
-                  onClick={() => void handleCapture()}
-                  className="rounded-full bg-white p-1 shadow-2xl transition hover:scale-105"
-                >
-                  <div className="h-16 w-16 rounded-full border-4 border-black bg-white" />
-                </button>
+                <div className="flex flex-col items-center gap-3">
+                  <div className="rounded-full bg-black/45 px-4 py-2 text-xs font-medium uppercase tracking-[0.24em] text-cyan-100 backdrop-blur-md">
+                    Keep your face inside the ring
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleCapture()}
+                    className="rounded-full bg-white p-1 shadow-2xl transition hover:scale-105"
+                  >
+                    <div className="h-16 w-16 rounded-full border-4 border-black bg-white" />
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
             <button
               type="button"
-              onClick={() => setCameraOpen(true)}
+              onClick={() => {
+                setErrorMessage(null);
+                setCameraOpen(true);
+              }}
               disabled={searching}
               className="group relative flex min-h-[360px] w-full overflow-hidden rounded-[1.8rem] bg-slate-950 px-6 text-center text-white transition hover:bg-slate-900 disabled:opacity-60"
             >
@@ -282,6 +336,16 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
               </div>
             </button>
           )}
+
+          {errorMessage && (
+            <div className="mt-4 flex items-start gap-3 rounded-[1.4rem] border border-amber-200 bg-amber-50 px-4 py-4 text-left text-sm text-amber-800">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>
+                <div className="font-semibold">Try one more scan</div>
+                <div className="mt-1 leading-6">{errorMessage}</div>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
@@ -292,7 +356,11 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
           <div className="absolute h-[25rem] w-[25rem] animate-scan-ring rounded-full border border-cyan-300/20 [animation-delay:350ms]" />
           <div className="relative overflow-hidden rounded-[2.2rem] border border-cyan-200/25 bg-slate-950 shadow-[0_0_90px_rgba(103,232,249,0.18)]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={previewImage} alt="Scanning selfie" className="h-80 w-80 object-cover opacity-80 md:h-96 md:w-96" />
+            <img
+              src={previewImage}
+              alt="Scanning camera frame"
+              className="h-80 w-80 object-cover opacity-80 md:h-96 md:w-96"
+            />
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(103,232,249,0.18),transparent_25%,transparent_75%,rgba(103,232,249,0.18))]" />
             <div className="absolute inset-x-0 top-0 h-1 animate-scan-vertical bg-cyan-300 shadow-[0_0_30px_rgba(103,232,249,0.95)]" />
             <div className="absolute inset-8 rounded-[2rem] border border-white/20" />

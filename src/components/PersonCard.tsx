@@ -25,13 +25,17 @@ export default function PersonCard({
   person,
 }: PersonCardProps) {
   const [deleting, setDeleting] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const router = useRouter();
 
   const handleDelete = async (event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
 
-    if (!confirm("Delete this detected guest group and remove its matched photos from the album view?")) {
+    if (!confirmingDelete) {
+      setConfirmingDelete(true);
+      setDeleteError(null);
       return;
     }
 
@@ -42,7 +46,8 @@ export default function PersonCard({
       return;
     }
 
-    alert(result.error ?? "Failed to delete guest group");
+    setDeleteError(result.error ?? "Failed to delete guest group");
+    setConfirmingDelete(false);
     setDeleting(false);
   };
 
@@ -88,15 +93,38 @@ export default function PersonCard({
         </div>
 
         {canManage && (
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleDelete}
-              className="inline-flex w-full items-center justify-center rounded-full border border-red-200 bg-red-50 p-2.5 text-red-700 transition hover:bg-red-100"
-              title="Delete guest group"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              {confirmingDelete && !deleting && (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setConfirmingDelete(false);
+                  }}
+                  className="inline-flex w-full items-center justify-center rounded-full border border-slate-200 bg-white px-3 py-2.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-950"
+                >
+                  Cancel
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting}
+                className={`inline-flex w-full items-center justify-center rounded-full px-3 py-2.5 text-xs font-medium transition ${
+                  confirmingDelete
+                    ? "border border-red-300 bg-red-100 text-red-800 hover:bg-red-200"
+                    : "border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                }`}
+                title="Delete guest group"
+              >
+                <Trash2 className="mr-1.5 h-4 w-4" />
+                {deleting ? "Deleting..." : confirmingDelete ? "Confirm delete" : "Delete group"}
+              </button>
+            </div>
+
+            {deleteError && <div className="text-xs text-red-600">{deleteError}</div>}
           </div>
         )}
       </div>
