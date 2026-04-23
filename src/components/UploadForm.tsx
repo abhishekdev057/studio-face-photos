@@ -5,6 +5,7 @@ import { AlertCircle, CheckCircle2, Loader2, ScanSearch, Upload } from "lucide-r
 import { useRouter } from "next/navigation";
 import { uploadPhoto } from "@/actions/upload";
 import { resizeImage } from "@/utils/image";
+import { trackConcurrentTask, waitForAvailableSlot } from "@/utils/concurrency";
 import {
   ensureFaceModels,
   filterReliableDetections,
@@ -26,6 +27,7 @@ interface UploadStats {
 }
 
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+const SAFE_UPLOAD_MUTATION_CONCURRENCY = 2;
 
 function buildEmptyStats(total = 0): UploadStats {
   return {
@@ -100,6 +102,7 @@ export default function UploadForm({ workspaceId, workspaceName }: UploadFormPro
 
   const processFiles = async (selectedFiles: File[]) => {
     const history = readHistory();
+    const pendingUploads = new Set<Promise<unknown>>();
     stopRef.current = false;
     setIsUploading(true);
     setStats(buildEmptyStats(selectedFiles.length));
@@ -107,6 +110,7 @@ export default function UploadForm({ workspaceId, workspaceName }: UploadFormPro
     addLog(
       `Starting upload for ${selectedFiles.length} photo${selectedFiles.length === 1 ? "" : "s"} in ${workspaceName}.`,
     );
+    addLog(`Safe parallel upload lanes: ${SAFE_UPLOAD_MUTATION_CONCURRENCY}.`);
 
     let hasSuccessfulUpload = false;
 
@@ -144,32 +148,52 @@ export default function UploadForm({ workspaceId, workspaceName }: UploadFormPro
         formData.append("workspaceId", workspaceId);
         formData.append("descriptors", JSON.stringify(descriptors));
 
-        const result = await uploadPhoto(formData);
-        if (!result.success) {
-          throw new Error(result.error || "Upload failed");
-        }
+        await waitForAvailableSlot(pendingUploads, SAFE_UPLOAD_MUTATION_CONCURRENCY);
+        trackConcurrentTask(
+          pendingUploads,
+          (async () => {
+            const result = await uploadPhoto(formData);
+            if (!result.success) {
+              throw new Error(result.error || "Upload failed");
+            }
 
-        history.add(fingerprint);
-        writeHistory(history);
-        hasSuccessfulUpload = hasSuccessfulUpload || !result.skipped;
+            history.add(fingerprint);
+            writeHistory(history);
+            hasSuccessfulUpload = hasSuccessfulUpload || !result.skipped;
 
-        setStats((current) => ({
-          ...current,
-          processed: current.processed + 1,
-          uploaded: current.uploaded + (result.skipped ? 0 : 1),
-          skipped: current.skipped + (result.skipped ? 1 : 0),
-          noFace: current.noFace + (result.analysisStatus === "NO_FACE" ? 1 : 0),
-        }));
+            setStats((current) => ({
+              ...current,
+              processed: current.processed + 1,
+              uploaded: current.uploaded + (result.skipped ? 0 : 1),
+              skipped: current.skipped + (result.skipped ? 1 : 0),
+              noFace: current.noFace + (result.analysisStatus === "NO_FACE" ? 1 : 0),
+            }));
 
-        if (result.skipped) {
-          addLog(`${file.name} already exists. Skipping duplicate.`);
-        } else if (result.analysisStatus === "FAILED") {
-          addLog(`${file.name} uploaded, but face indexing needs attention.`);
-        } else if (result.analysisStatus === "NO_FACE") {
-          addLog(`${file.name} uploaded in original quality. No clear face found.`);
-        } else {
-          addLog(`${file.name} uploaded with ${result.detectedFaces ?? descriptors.length} face match${(result.detectedFaces ?? descriptors.length) === 1 ? "" : "es"}.`);
-        }
+            if (result.skipped) {
+              addLog(`${file.name} already exists. Skipping duplicate.`);
+            } else if (result.analysisStatus === "FAILED") {
+              addLog(`${file.name} uploaded, but face indexing needs attention.`);
+            } else if (result.analysisStatus === "NO_FACE") {
+              addLog(`${file.name} uploaded in original quality. No clear face found.`);
+            } else {
+              addLog(
+                `${file.name} uploaded with ${result.detectedFaces ?? descriptors.length} face match${(result.detectedFaces ?? descriptors.length) === 1 ? "" : "es"}.`,
+              );
+            }
+          })().catch((error) => {
+            console.error(`Upload pipeline failed for ${file.name}:`, error);
+            setStats((current) => ({
+              ...current,
+              processed: current.processed + 1,
+              errors: current.errors + 1,
+            }));
+            addLog(
+              error instanceof Error
+                ? `Failed on ${file.name}: ${error.message}`
+                : `Failed on ${file.name}.`,
+            );
+          }),
+        );
       } catch (error) {
         console.error(`Upload pipeline failed for ${file.name}:`, error);
         setStats((current) => ({
@@ -185,6 +209,7 @@ export default function UploadForm({ workspaceId, workspaceName }: UploadFormPro
       }
     }
 
+    await Promise.all(Array.from(pendingUploads));
     setIsUploading(false);
     addLog(stopRef.current ? "Upload paused." : "Upload batch completed.");
 

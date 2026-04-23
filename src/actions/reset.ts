@@ -3,6 +3,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getManageableWorkspaceById } from "@/lib/workspaces";
+import { acquireWorkspaceFaceIndexLock } from "@/lib/workspaceMutationLock";
 import { revalidatePath } from "next/cache";
 
 export async function resetWorkspaceData(workspaceId: string) {
@@ -21,14 +22,16 @@ export async function resetWorkspaceData(workspaceId: string) {
       throw new Error("Workspace not found or access denied");
     }
 
-    await prisma.$transaction([
-      prisma.photo.deleteMany({
+    await prisma.$transaction(async (tx) => {
+      await acquireWorkspaceFaceIndexLock(tx, workspace.id);
+
+      await tx.photo.deleteMany({
         where: { eventId: workspace.id },
-      }),
-      prisma.person.deleteMany({
+      });
+      await tx.person.deleteMany({
         where: { eventId: workspace.id },
-      }),
-    ]);
+      });
+    });
 
     revalidatePath("/organizer");
     revalidatePath("/w/[slug]", "page");

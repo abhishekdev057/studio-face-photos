@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { getUploadWorkspaceById } from "@/lib/workspaces";
 import { indexPhotoDescriptors, parseDescriptorPayload } from "@/lib/photoIndexing";
 import { getSafeCloudinaryFormat, validateImageUpload } from "@/lib/uploadSecurity";
+import { acquireWorkspaceFaceIndexLock } from "@/lib/workspaceMutationLock";
 import { auth } from "@/auth";
 
 cloudinary.config({
@@ -144,6 +145,8 @@ export async function uploadPhoto(formData: FormData) {
     } else {
       try {
         const assignedPersonIds = await prisma.$transaction(async (tx) => {
+          await acquireWorkspaceFaceIndexLock(tx, workspace.id);
+
           return indexPhotoDescriptors({
             tx,
             eventId: workspace.id,

@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getManageableWorkspaceById } from "@/lib/workspaces";
 import { indexPhotoDescriptors, parseDescriptorPayload } from "@/lib/photoIndexing";
+import { acquireWorkspaceFaceIndexLock } from "@/lib/workspaceMutationLock";
 
 type ReprocessActionResult = {
   success: boolean;
@@ -38,32 +39,36 @@ export async function beginWorkspaceReprocess(workspaceId: string) {
   try {
     const workspace = await getReprocessWorkspace(workspaceId);
 
-    const photoCount = await prisma.photo.count({
-      where: { eventId: workspace.id },
-    });
+    const photoCount = await prisma.$transaction(async (tx) => {
+      await acquireWorkspaceFaceIndexLock(tx, workspace.id);
 
-    await prisma.$transaction([
-      prisma.face.deleteMany({
+      const count = await tx.photo.count({
+        where: { eventId: workspace.id },
+      });
+
+      await tx.face.deleteMany({
         where: {
           photo: {
             eventId: workspace.id,
           },
         },
-      }),
-      prisma.person.deleteMany({
+      });
+      await tx.person.deleteMany({
         where: {
           eventId: workspace.id,
         },
-      }),
-      prisma.photo.updateMany({
+      });
+      await tx.photo.updateMany({
         where: { eventId: workspace.id },
         data: {
           faceCount: 0,
           analysisStatus: "QUEUED",
           analyzedAt: null,
         },
-      }),
-    ]);
+      });
+
+      return count;
+    });
 
     return { success: true, photoCount } satisfies ReprocessActionResult;
   } catch (error) {
@@ -105,6 +110,8 @@ export async function reprocessWorkspacePhoto({
     let analysisStatus: ReprocessActionResult["analysisStatus"] = "NO_FACE";
 
     await prisma.$transaction(async (tx) => {
+      await acquireWorkspaceFaceIndexLock(tx, workspace.id);
+
       await tx.face.deleteMany({
         where: { photoId },
       });

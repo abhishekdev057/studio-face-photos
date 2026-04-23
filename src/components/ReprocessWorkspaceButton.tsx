@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { RefreshCcw, RotateCcw, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { trackConcurrentTask, waitForAvailableSlot } from "@/utils/concurrency";
 import {
   beginWorkspaceReprocess,
   finishWorkspaceReprocess,
@@ -31,6 +32,8 @@ type ReprocessStats = {
   faces: number;
   failed: number;
 };
+
+const SAFE_REPROCESS_MUTATION_CONCURRENCY = 2;
 
 export default function ReprocessWorkspaceButton({
   workspaceId,
@@ -85,6 +88,9 @@ export default function ReprocessWorkspaceButton({
     let processed = 0;
     let faces = 0;
     let failed = 0;
+    const pendingReprocess = new Set<Promise<unknown>>();
+
+    setStatus(`Running safe parallel lanes (${SAFE_REPROCESS_MUTATION_CONCURRENCY})...`);
 
     for (const photo of photos) {
       if (stopRef.current) {
@@ -103,28 +109,41 @@ export default function ReprocessWorkspaceButton({
         });
         const descriptors = reliableDetections.map((detection) => Array.from(detection.descriptor));
 
-        const result = await reprocessWorkspacePhoto({
-          workspaceId,
-          photoId: photo.id,
-          descriptors,
-        });
+        await waitForAvailableSlot(pendingReprocess, SAFE_REPROCESS_MUTATION_CONCURRENCY);
+        trackConcurrentTask(
+          pendingReprocess,
+          (async () => {
+            const result = await reprocessWorkspacePhoto({
+              workspaceId,
+              photoId: photo.id,
+              descriptors,
+            });
 
-        if (!result.success) {
-          throw new Error(result.error ?? "Reprocess failed");
-        }
+            if (!result.success) {
+              throw new Error(result.error ?? "Reprocess failed");
+            }
 
-        processed += 1;
-        faces += result.detectedFaces ?? descriptors.length;
+            processed += 1;
+            faces += result.detectedFaces ?? descriptors.length;
+            updateStats({ processed, faces, failed });
+          })().catch(async (error) => {
+            console.error("Workspace photo reprocess failed:", error);
+            await markWorkspacePhotoReprocessFailed(workspaceId, photo.id);
+            processed += 1;
+            failed += 1;
+            updateStats({ processed, faces, failed });
+          }),
+        );
       } catch (error) {
         console.error("Workspace photo reprocess failed:", error);
         await markWorkspacePhotoReprocessFailed(workspaceId, photo.id);
         processed += 1;
         failed += 1;
+        updateStats({ processed, faces, failed });
       }
-
-      updateStats({ processed, faces, failed });
     }
 
+    await Promise.all(Array.from(pendingReprocess));
     await finishWorkspaceReprocess(workspaceId);
     setRunning(false);
     setStatus(stopRef.current ? "Reprocess stopped" : "Reprocess complete");
