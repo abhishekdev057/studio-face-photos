@@ -26,14 +26,14 @@ export default async function PublicWorkspacePage({ params }: PublicWorkspacePag
             </div>
             <h1 className="text-4xl font-semibold tracking-tight">{workspace.name}</h1>
             <p className="max-w-2xl text-sm text-slate-500">
-              Selfie search only. No public gallery.
+              Camera scan only. Matching photos stay private to you.
             </p>
             <div className="flex flex-wrap gap-2 pt-2">
               <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
                 {workspace._count.photos} photos indexed
               </div>
               <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-                Private match flow
+                No upload option
               </div>
             </div>
           </div>

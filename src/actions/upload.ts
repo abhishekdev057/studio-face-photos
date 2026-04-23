@@ -5,13 +5,7 @@ import crypto from "crypto";
 import { v2 as cloudinary } from "cloudinary";
 import { prisma } from "@/lib/prisma";
 import { getUploadWorkspaceById } from "@/lib/workspaces";
-import {
-  chooseBestPersonMatch,
-  FACE_EXTENDED_MATCH_THRESHOLD,
-  FACE_UPLOAD_CANDIDATE_LIMIT,
-  normalizeDescriptor,
-  type FaceCandidateRow,
-} from "@/lib/faceMatching";
+import { indexPhotoDescriptors, parseDescriptorPayload } from "@/lib/photoIndexing";
 import { getSafeCloudinaryFormat, validateImageUpload } from "@/lib/uploadSecurity";
 import { auth } from "@/auth";
 
@@ -36,31 +30,6 @@ type CloudinaryUploadResult = {
   width?: number;
   height?: number;
 };
-
-function parseDescriptors(rawValue: FormDataEntryValue | null) {
-  if (typeof rawValue !== "string" || rawValue.trim().length === 0) {
-    return [] as number[][];
-  }
-
-  const parsed = JSON.parse(rawValue);
-  if (!Array.isArray(parsed)) {
-    return [];
-  }
-
-  return parsed
-    .map((descriptor) => {
-      if (Array.isArray(descriptor)) {
-        return normalizeDescriptor(descriptor);
-      }
-
-      if (descriptor && typeof descriptor === "object") {
-        return normalizeDescriptor(Object.values(descriptor).map((value) => Number(value)));
-      }
-
-      return null;
-    })
-    .filter((descriptor): descriptor is number[] => Array.isArray(descriptor));
-}
 
 function uploadImageBufferToCloudinary(
   buffer: Buffer,
@@ -132,7 +101,7 @@ export async function uploadPhoto(formData: FormData) {
     const buffer = Buffer.from(await file.arrayBuffer());
     validateImageUpload(file, buffer);
     const hash = crypto.createHash("sha256").update(buffer).digest("hex");
-    const descriptors = parseDescriptors(formData.get("descriptors"));
+    const descriptors = parseDescriptorPayload(formData.get("descriptors"));
 
     const existingPhoto = await prisma.photo.findFirst({
       where: {
@@ -175,70 +144,12 @@ export async function uploadPhoto(formData: FormData) {
     } else {
       try {
         const assignedPersonIds = await prisma.$transaction(async (tx) => {
-          const assigned = new Set<string>();
-
-          for (const descriptor of descriptors) {
-            const vectorString = `[${descriptor.join(",")}]`;
-            const faceId = crypto.randomUUID();
-            let personId: string | null = null;
-
-            try {
-              const matches = await tx.$queryRaw<FaceCandidateRow[]>`
-                SELECT f."personId", f."photoId", (f.embedding <-> ${vectorString}::vector) AS distance
-                FROM "Face" f
-                INNER JOIN "Person" person ON person.id = f."personId"
-                WHERE person."eventId" = ${workspace.id}
-                  AND (f.embedding <-> ${vectorString}::vector) < ${FACE_EXTENDED_MATCH_THRESHOLD}
-                ORDER BY distance ASC
-                LIMIT ${FACE_UPLOAD_CANDIDATE_LIMIT}
-              `;
-
-              const bestMatch = chooseBestPersonMatch(matches, assigned);
-              if (bestMatch) {
-                personId = bestMatch.personId;
-              } else {
-                const newPerson = await tx.person.create({
-                  data: {
-                    eventId: workspace.id,
-                    coverPhotoId: photo.id,
-                  },
-                });
-                personId = newPerson.id;
-              }
-            } catch (error) {
-              console.error("Vector search failed, creating a new person instead.", error);
-              const newPerson = await tx.person.create({
-                data: {
-                  eventId: workspace.id,
-                  coverPhotoId: photo.id,
-                },
-              });
-              personId = newPerson.id;
-            }
-
-            if (personId) {
-              assigned.add(personId);
-              await tx.person.updateMany({
-                where: {
-                  id: personId,
-                  coverPhotoId: null,
-                },
-                data: {
-                  coverPhotoId: photo.id,
-                },
-              });
-            }
-
-            await tx.$executeRawUnsafe(
-              `INSERT INTO "Face" ("id", "photoId", "embedding", "personId") VALUES ($1, $2, $3::vector, $4)`,
-              faceId,
-              photo.id,
-              vectorString,
-              personId,
-            );
-          }
-
-          return Array.from(assigned);
+          return indexPhotoDescriptors({
+            tx,
+            eventId: workspace.id,
+            photoId: photo.id,
+            descriptors,
+          });
         });
 
         matchedPeople = assignedPersonIds.length;

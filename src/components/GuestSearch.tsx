@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Webcam from "react-webcam";
-import { Camera, Download, Eye, Loader2, ScanFace, Upload, X } from "lucide-react";
-import { resizeImage } from "@/utils/image";
+import { Camera, Download, Eye, Loader2, ScanFace, Sparkles, X } from "lucide-react";
 import {
   ensureFaceModels,
   filterReliableDetections,
@@ -22,7 +21,6 @@ interface GuestSearchProps {
 }
 
 const DOMINANT_FACE_AREA_RATIO = 1.85;
-const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
 type DetectionCandidate = {
   descriptor: Float32Array;
@@ -71,7 +69,7 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
       .then(() => {
         if (!cancelled) {
           setModelLoaded(true);
-          setStatus("Selfie search ready");
+          setStatus("Camera ready");
         }
       })
       .catch((error) => {
@@ -138,13 +136,10 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
     setSearched(true);
   };
 
-  const processImage = async (imageSource: string | Blob) => {
-    const previewUrl =
-      typeof imageSource === "string" ? imageSource : URL.createObjectURL(imageSource);
-
+  const processImage = async (imageSource: string) => {
     setSearching(true);
     setCameraOpen(false);
-    setPreviewImage(previewUrl);
+    setPreviewImage(imageSource);
 
     try {
       const { image, detections } = await getFullFaceDescription(imageSource);
@@ -176,36 +171,6 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
     } finally {
       setSearching(false);
       setPreviewImage(null);
-      if (typeof imageSource !== "string") {
-        URL.revokeObjectURL(previewUrl);
-      }
-    }
-  };
-
-  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!event.target.files || event.target.files.length === 0) {
-      return;
-    }
-
-    if (!modelLoaded) {
-      alert("Face engine is still loading.");
-      return;
-    }
-
-    const file = event.target.files[0];
-    event.target.value = "";
-
-    if (file.size > MAX_UPLOAD_BYTES) {
-      alert("Keep uploads below 25 MB.");
-      return;
-    }
-
-    try {
-      const resizedBlob = await resizeImage(file, 1280);
-      await processImage(resizedBlob);
-    } catch (error) {
-      console.error(error);
-      alert("We couldn't prepare that selfie. Please try another one.");
     }
   };
 
@@ -250,55 +215,36 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
 
   return (
     <div className="space-y-8">
-      <section className="rounded-[2rem] border border-slate-200 bg-white p-6 text-slate-950 shadow-[0_30px_80px_rgba(15,23,42,0.12)]">
+      <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white text-slate-950 shadow-[0_30px_80px_rgba(15,23,42,0.12)]">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-2">
+          <div className="space-y-2 p-6 pb-0 lg:p-8 lg:pb-0">
             <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-slate-600">
               <ScanFace className="h-3.5 w-3.5" />
-              Selfie access only
+              Live selfie access
             </div>
-            <h1 className="text-4xl font-semibold tracking-tight">Find your photos</h1>
+            <h1 className="text-4xl font-semibold tracking-tight">Scan your face</h1>
             <p className="text-sm text-slate-500">
-              {workspaceName}. Upload one selfie or use the camera.
+              {workspaceName}. Camera only. No gallery upload.
             </p>
           </div>
 
-          <div className={`rounded-full border px-4 py-2 text-sm ${statusTone}`}>
+          <div className={`mx-6 mt-6 rounded-full border px-4 py-2 text-sm lg:mx-8 ${statusTone}`}>
             {status}
           </div>
         </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-[1fr_auto_1fr]">
-          <label className="group relative flex min-h-52 cursor-pointer flex-col items-center justify-center gap-4 rounded-[1.6rem] border border-dashed border-slate-300 bg-slate-50 px-6 text-center transition hover:border-slate-400 hover:bg-slate-100">
-            <div className="rounded-full bg-white p-4 shadow-sm">
-              <Upload className="h-6 w-6 text-slate-700" />
-            </div>
-            <div>
-              <div className="text-lg font-semibold text-slate-900">Upload selfie</div>
-              <div className="mt-1 text-sm text-slate-500">One clear face.</div>
-            </div>
-            <input
-              type="file"
-              accept="image/*"
-              className="absolute inset-0 cursor-pointer opacity-0"
-              onChange={handleUpload}
-              disabled={searching}
-            />
-          </label>
-
-          <div className="flex items-center justify-center text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
-            or
-          </div>
-
+        <div className="mt-6 p-4 pt-0 lg:p-6 lg:pt-0">
           {cameraOpen ? (
-            <div className="relative overflow-hidden rounded-[1.6rem] border border-slate-200 bg-black">
+            <div className="relative overflow-hidden rounded-[1.8rem] border border-slate-200 bg-slate-950 shadow-inner">
               <Webcam
                 ref={webcamRef}
                 audio={false}
                 screenshotFormat="image/jpeg"
                 videoConstraints={{ facingMode: "user" }}
-                className="aspect-video w-full object-cover"
+                className="aspect-[16/9] max-h-[620px] w-full object-cover"
               />
+              <div className="pointer-events-none absolute inset-8 rounded-[2rem] border border-white/20" />
+              <div className="pointer-events-none absolute left-1/2 top-1/2 h-60 w-60 -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-300/40 shadow-[0_0_60px_rgba(103,232,249,0.16)]" />
               <button
                 type="button"
                 onClick={() => setCameraOpen(false)}
@@ -321,14 +267,18 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
               type="button"
               onClick={() => setCameraOpen(true)}
               disabled={searching}
-              className="flex min-h-52 flex-col items-center justify-center gap-4 rounded-[1.6rem] border border-slate-200 bg-slate-950 px-6 text-center text-white transition hover:bg-slate-900 disabled:opacity-60"
+              className="group relative flex min-h-[360px] w-full overflow-hidden rounded-[1.8rem] bg-slate-950 px-6 text-center text-white transition hover:bg-slate-900 disabled:opacity-60"
             >
-              <div className="rounded-full bg-white/10 p-4">
-                <Camera className="h-6 w-6" />
-              </div>
-              <div>
-                <div className="text-lg font-semibold">Use camera</div>
-                <div className="mt-1 text-sm text-slate-300">Take a live selfie.</div>
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(103,232,249,0.24),transparent_32%),linear-gradient(135deg,#020617,#0f172a)]" />
+              <div className="absolute left-1/2 top-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-300/20 transition group-hover:scale-105" />
+              <div className="relative z-10 m-auto flex flex-col items-center gap-5">
+                <div className="rounded-full bg-white/10 p-5 shadow-[0_0_50px_rgba(103,232,249,0.16)]">
+                  <Camera className="h-8 w-8" />
+                </div>
+                <div>
+                  <div className="text-3xl font-semibold">Start camera</div>
+                  <div className="mt-2 text-sm text-slate-300">Look straight. Tap once to scan.</div>
+                </div>
               </div>
             </button>
           )}
@@ -336,15 +286,24 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
       </section>
 
       {searching && previewImage && (
-        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-slate-950/95 backdrop-blur-2xl">
-          <div className="relative overflow-hidden rounded-[2rem] border border-white/10">
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-hidden bg-slate-950/98 backdrop-blur-2xl">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(103,232,249,0.18),transparent_34%),linear-gradient(180deg,#020617,#050816)]" />
+          <div className="absolute h-[34rem] w-[34rem] animate-scan-ring rounded-full border border-cyan-300/15" />
+          <div className="absolute h-[25rem] w-[25rem] animate-scan-ring rounded-full border border-cyan-300/20 [animation-delay:350ms]" />
+          <div className="relative overflow-hidden rounded-[2.2rem] border border-cyan-200/25 bg-slate-950 shadow-[0_0_90px_rgba(103,232,249,0.18)]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={previewImage} alt="Scanning selfie" className="h-80 w-80 object-cover opacity-70" />
-            <div className="absolute inset-x-0 top-0 h-0.5 animate-scan-vertical bg-cyan-400 shadow-[0_0_16px_rgba(34,211,238,0.95)]" />
+            <img src={previewImage} alt="Scanning selfie" className="h-80 w-80 object-cover opacity-80 md:h-96 md:w-96" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(103,232,249,0.18),transparent_25%,transparent_75%,rgba(103,232,249,0.18))]" />
+            <div className="absolute inset-x-0 top-0 h-1 animate-scan-vertical bg-cyan-300 shadow-[0_0_30px_rgba(103,232,249,0.95)]" />
+            <div className="absolute inset-8 rounded-[2rem] border border-white/20" />
           </div>
-          <div className="mt-8 flex items-center gap-3 text-cyan-200">
+          <div className="relative mt-8 flex items-center gap-3 text-cyan-100">
             <Loader2 className="h-5 w-5 animate-spin" />
-            <span className="text-sm font-semibold uppercase tracking-[0.24em]">Scanning</span>
+            <span className="text-sm font-semibold uppercase tracking-[0.28em]">Matching your face</span>
+          </div>
+          <div className="relative mt-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-slate-300">
+            <Sparkles className="h-3.5 w-3.5 text-cyan-200" />
+            Private scan. Only matching photos appear.
           </div>
         </div>
       )}
@@ -359,7 +318,7 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
               <p className="mt-1 text-sm text-slate-500">
                 {photos.length > 0
                   ? "Only your matched photos are shown."
-                  : "Try another selfie with better light and one clear face."}
+                  : "Try again with better light and one clear face."}
               </p>
             </div>
 
@@ -368,7 +327,7 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
               onClick={resetSearch}
               className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
             >
-              Try another selfie
+              Scan again
             </button>
           </div>
 

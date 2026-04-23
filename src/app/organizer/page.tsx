@@ -17,6 +17,7 @@ import PhotoGrid from "@/components/PhotoGrid";
 import WorkspaceCreateForm from "@/components/WorkspaceCreateForm";
 import WorkspaceAccessManager from "@/components/WorkspaceAccessManager";
 import CopyLinkButton from "@/components/CopyLinkButton";
+import ReprocessWorkspaceButton from "@/components/ReprocessWorkspaceButton";
 
 export const dynamic = "force-dynamic";
 
@@ -86,7 +87,7 @@ export default async function OrganizerPage({ searchParams }: OrganizerPageProps
       }),
   );
 
-  const [people, photos, faceCount, noFaceCount, publicLink] = activeWorkspace
+  const [people, photos, reprocessPhotos, faceCount, noFaceCount, publicLink] = activeWorkspace
     ? await Promise.all([
         prisma.person.findMany({
           where: { eventId: activeWorkspace.id },
@@ -116,6 +117,14 @@ export default async function OrganizerPage({ searchParams }: OrganizerPageProps
             faceCount: true,
           },
         }),
+        prisma.photo.findMany({
+          where: { eventId: activeWorkspace.id },
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            url: true,
+          },
+        }),
         prisma.face.count({
           where: {
             photo: {
@@ -131,7 +140,7 @@ export default async function OrganizerPage({ searchParams }: OrganizerPageProps
         }),
         getOrCreateWorkspacePublicLink(activeWorkspace.id),
       ])
-    : [[], [], 0, 0, null];
+    : [[], [], [], 0, 0, null];
 
   const personCards = people.map((person) => ({
     id: person.id,
@@ -403,6 +412,14 @@ export default async function OrganizerPage({ searchParams }: OrganizerPageProps
                   </div>
                 )}
               </section>
+
+              {canManageActiveWorkspace && (
+                <ReprocessWorkspaceButton
+                  workspaceId={activeWorkspace.id}
+                  workspaceName={activeWorkspace.name}
+                  photos={reprocessPhotos}
+                />
+              )}
 
               <section className="space-y-5">
                 <div className="flex items-center justify-between gap-4">

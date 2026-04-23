@@ -94,6 +94,22 @@
   }
 }
 
+@keyframes scan-ring {
+  0% {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+
+  35% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.14);
+  }
+}
+
 /* Utilities */
 .animate-scan-vertical {
   animation: scan-vertical 2s ease-in-out infinite;
@@ -101,6 +117,10 @@
 
 .animate-shine {
   animation: shine 1.5s linear infinite;
+}
+
+.animate-scan-ring {
+  animation: scan-ring 2.4s ease-out infinite;
 }
 
 /* Utilities */
