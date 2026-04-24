@@ -32,7 +32,7 @@ const INDEX_MATCH_RULES: MatchRules = {
   supportedThreshold: 0.425,
   supportedAverageThreshold: 0.44,
   minStrongSupport: 2,
-  minSupportCount: 3,
+  minSupportCount: 2,
   minUniquePhotoSupport: 2,
   softScoreMargin: PERSON_SOFT_MARGIN,
   decisiveScoreMargin: PERSON_DECISIVE_MARGIN,
@@ -260,6 +260,48 @@ export function chooseBestPersonMatch(
 export function choosePublicPersonMatch(candidates: FaceCandidateRow[]) {
   const summaries = summarizePersonCandidates(candidates);
   return evaluateMatch(summaries, PUBLIC_MATCH_RULES);
+}
+
+export function expandPublicMatchedPeople(decision: MatchDecision) {
+  if (!decision.match) {
+    return [];
+  }
+
+  const primary = decision.match;
+  const maxBestDistanceGap = decision.confidence === "elite" ? 0.04 : 0.028;
+  const maxAverageGap = decision.confidence === "elite" ? 0.05 : 0.035;
+  const maxScoreGap = decision.confidence === "elite" ? 0.065 : 0.04;
+
+  return decision.summaries
+    .filter((summary) => {
+      if (summary.personId === primary.personId) {
+        return true;
+      }
+
+      const bestDistanceGap = summary.bestDistance - primary.bestDistance;
+      const averageGap = summary.averageTopDistance - primary.averageTopDistance;
+      const scoreGap = summary.score - primary.score;
+      const hasCloseFace = summary.bestDistance <= Math.min(0.39, primary.bestDistance + 0.05);
+      const hasAnyMeaningfulSupport =
+        summary.strongSupportCount >= 1 ||
+        summary.supportCount >= 1 ||
+        summary.uniquePhotoSupport >= 1;
+      const isTooCompetitive =
+        summary.bestDistance <= 0.39 &&
+        scoreGap < 0.016 &&
+        summary.strongSupportCount >= 2 &&
+        summary.uniquePhotoSupport >= 2;
+
+      return (
+        bestDistanceGap <= maxBestDistanceGap &&
+        averageGap <= maxAverageGap &&
+        scoreGap <= maxScoreGap &&
+        hasCloseFace &&
+        hasAnyMeaningfulSupport &&
+        !isTooCompetitive
+      );
+    })
+    .slice(0, 4);
 }
 
 export function getPublicPhotoDistanceCutoff(summary: PersonMatchSummary) {
