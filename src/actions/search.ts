@@ -7,7 +7,6 @@ import {
   expandPublicMatchedPeople,
   FACE_PUBLIC_CANDIDATE_THRESHOLD,
   FACE_SEARCH_CANDIDATE_LIMIT,
-  getPublicPhotoDistanceCutoff,
   normalizeDescriptor,
   type FaceCandidateRow,
 } from "@/lib/faceMatching";
@@ -70,9 +69,6 @@ export async function searchPhotos(
 
     const relatedPeople = expandPublicMatchedPeople(decision);
     const relatedPersonIds = relatedPeople.map((summary) => summary.personId);
-    const cutoffByPersonId = new Map(
-      relatedPeople.map((summary) => [summary.personId, getPublicPhotoDistanceCutoff(summary)]),
-    );
 
     const photos = await prisma.$queryRaw<PersonPhotoRow[]>`
       SELECT p.id, p.url, p."faceCount", f."personId", MIN(f.embedding <-> ${vectorString}::vector) AS distance, p."createdAt"
@@ -87,11 +83,6 @@ export async function searchPhotos(
 
     const safePhotos = new Map<string, PersonPhotoRow>();
     for (const photo of photos) {
-      const cutoff = cutoffByPersonId.get(photo.personId);
-      if (!cutoff || photo.distance > cutoff) {
-        continue;
-      }
-
       const current = safePhotos.get(photo.id);
       if (!current || photo.distance < current.distance) {
         safePhotos.set(photo.id, photo);
@@ -115,9 +106,9 @@ export async function searchPhotos(
       message:
         orderedSafePhotos.length > 0
           ? relatedPeople.length > 1
-            ? "Verified match across related clusters"
-            : "Verified match only"
-          : "A close match was found, but not enough photos passed the verification check.",
+            ? "All linked photos from verified related clusters"
+            : "All linked photos from the verified match"
+          : "A close match was found, but no linked photos were available.",
     };
   } catch (error) {
     console.error("Search failed", error);
