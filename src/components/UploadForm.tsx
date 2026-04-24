@@ -10,8 +10,13 @@ import {
   Upload,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { uploadPhoto } from "@/actions/upload";
 import { trackConcurrentTask, waitForAvailableSlot } from "@/utils/concurrency";
+import {
+  computeFileSha256,
+  createWorkspaceUploadSession,
+  finalizeWorkspaceUpload,
+  uploadFileDirectToCloudinary,
+} from "@/utils/directUpload";
 import {
   clearCompletedUploadQueue,
   enqueueUploadFiles,
@@ -206,14 +211,40 @@ export default function UploadForm({ workspaceId, workspaceName }: UploadFormPro
             error: null,
           });
 
-          const formData = new FormData();
-          formData.append("file", file);
-          formData.append("workspaceId", workspaceId);
+          const hash = await computeFileSha256(file);
+          const session = await createWorkspaceUploadSession({
+            file,
+            hash,
+            workspaceId,
+          });
 
-          const result = await uploadPhoto(formData);
-          if (!result.success) {
-            throw new Error(result.error || "Upload failed");
+          if (session.skipped) {
+            successfulUploads = successfulUploads || false;
+            await setQueueItemState(item.id, {
+              status: "skipped",
+              error: null,
+              file: null,
+            });
+
+            processedCount += 1;
+            setRunProgress({
+              total: uploadableItems.length,
+              processed: processedCount,
+            });
+            addLog(`${item.name} already exists in this workspace.`);
+            return;
           }
+
+          if (!session.upload) {
+            throw new Error("Upload session did not return Cloudinary parameters.");
+          }
+
+          const publicId = await uploadFileDirectToCloudinary(file, session.upload);
+          const result = await finalizeWorkspaceUpload({
+            hash,
+            publicId,
+            workspaceId,
+          });
 
           successfulUploads = successfulUploads || !result.skipped;
           await setQueueItemState(item.id, {

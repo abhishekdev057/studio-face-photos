@@ -1,5 +1,10 @@
-const ALLOWED_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const MAX_IMAGE_UPLOAD_BYTES = 25 * 1024 * 1024;
+export const ALLOWED_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+export const ALLOWED_CLOUDINARY_FORMATS = new Set(["jpg", "jpeg", "png", "webp"]);
+export const MAX_IMAGE_UPLOAD_BYTES = 25 * 1024 * 1024;
+
+export function isAllowedImageMimeType(mimeType: string) {
+  return ALLOWED_IMAGE_MIME_TYPES.has(mimeType);
+}
 
 function matchesJpegSignature(buffer: Uint8Array) {
   return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;

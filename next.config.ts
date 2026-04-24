@@ -5,8 +5,8 @@ const scriptSrc = isDevelopment
   ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
   : "script-src 'self' 'unsafe-inline'";
 const connectSrc = isDevelopment
-  ? "connect-src 'self' ws: wss: https://res.cloudinary.com"
-  : "connect-src 'self' https://res.cloudinary.com";
+  ? "connect-src 'self' ws: wss: https://res.cloudinary.com https://api.cloudinary.com"
+  : "connect-src 'self' https://res.cloudinary.com https://api.cloudinary.com";
 
 const securityHeaders = [
   {
