@@ -74,6 +74,39 @@ export async function imageFromSource(source: Blob | string) {
   return faceapi.fetchImage(source);
 }
 
+function buildAnalysisSurface(
+  image: HTMLImageElement | HTMLCanvasElement,
+  maxDimension?: number,
+) {
+  if (!maxDimension || maxDimension <= 0) {
+    return image;
+  }
+
+  const sourceWidth = image.width;
+  const sourceHeight = image.height;
+  const largestDimension = Math.max(sourceWidth, sourceHeight);
+
+  if (!largestDimension || largestDimension <= maxDimension) {
+    return image;
+  }
+
+  const scale = maxDimension / largestDimension;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+  canvas.height = Math.max(1, Math.round(sourceHeight * scale));
+
+  const context = canvas.getContext("2d");
+  if (!context) {
+    return image;
+  }
+
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  return canvas;
+}
+
 type DetectionLike = {
   detection: {
     score?: number;
@@ -115,11 +148,17 @@ export function filterReliableDetections<T extends DetectionLike>(
   });
 }
 
-export async function getFullFaceDescription(source: Blob | string) {
+export async function getFullFaceDescription(
+  source: Blob | string,
+  options?: {
+    maxDimension?: number;
+  },
+) {
   try {
     await ensureFaceModels();
     const faceapi = await getFaceApi();
-    const image = await imageFromSource(source);
+    const rawImage = await imageFromSource(source);
+    const image = buildAnalysisSurface(rawImage, options?.maxDimension);
     const detections = await faceapi
       .detectAllFaces(image)
       .withFaceLandmarks()

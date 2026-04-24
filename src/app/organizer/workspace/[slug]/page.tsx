@@ -105,6 +105,7 @@ export default async function OrganizerWorkspacePage({ params }: WorkspacePagePr
       select: {
         id: true,
         url: true,
+        analysisStatus: true,
       },
     }),
     prisma.face.count({

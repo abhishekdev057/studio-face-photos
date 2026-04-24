@@ -4,10 +4,8 @@ import { revalidatePath } from "next/cache";
 import crypto from "crypto";
 import { v2 as cloudinary } from "cloudinary";
 import { prisma } from "@/lib/prisma";
-import { getUploadWorkspaceById } from "@/lib/workspaces";
-import { indexPhotoDescriptors, parseDescriptorPayload } from "@/lib/photoIndexing";
+import { getOrganizerWorkspacePath, getUploadWorkspaceById } from "@/lib/workspaces";
 import { getSafeCloudinaryFormat, validateImageUpload } from "@/lib/uploadSecurity";
-import { acquireWorkspaceFaceIndexLock } from "@/lib/workspaceMutationLock";
 import { auth } from "@/auth";
 
 cloudinary.config({
@@ -22,7 +20,7 @@ type UploadActionResult = {
   error?: string;
   warning?: string;
   detectedFaces?: number;
-  analysisStatus?: "PROCESSED" | "NO_FACE" | "FAILED";
+  analysisStatus?: "QUEUED" | "PROCESSED" | "NO_FACE" | "FAILED";
   matchedPeople?: number;
 };
 
@@ -102,8 +100,6 @@ export async function uploadPhoto(formData: FormData) {
     const buffer = Buffer.from(await file.arrayBuffer());
     validateImageUpload(file, buffer);
     const hash = crypto.createHash("sha256").update(buffer).digest("hex");
-    const descriptors = parseDescriptorPayload(formData.get("descriptors"));
-
     const existingPhoto = await prisma.photo.findFirst({
       where: {
         eventId: workspace.id,
@@ -135,56 +131,16 @@ export async function uploadPhoto(formData: FormData) {
       },
     });
 
-    let analysisStatus: UploadActionResult["analysisStatus"] = "FAILED";
-    const detectedFaces = descriptors.length;
-    let matchedPeople = 0;
-    let warning: string | undefined;
-
-    if (descriptors.length === 0) {
-      analysisStatus = "NO_FACE";
-    } else {
-      try {
-        const assignedPersonIds = await prisma.$transaction(async (tx) => {
-          await acquireWorkspaceFaceIndexLock(tx, workspace.id);
-
-          return indexPhotoDescriptors({
-            tx,
-            eventId: workspace.id,
-            photoId: photo.id,
-            descriptors,
-          });
-        });
-
-        matchedPeople = assignedPersonIds.length;
-        analysisStatus = "PROCESSED";
-      } catch (error) {
-        console.error("Upload analysis failed after original image was stored.", error);
-        warning =
-          error instanceof Error
-            ? error.message
-            : "Face analysis failed after the original image was uploaded.";
-        analysisStatus = "FAILED";
-      }
-    }
-
-    await prisma.photo.update({
-      where: { id: photo.id },
-      data: {
-        faceCount: detectedFaces,
-        analysisStatus,
-        analyzedAt: new Date(),
-      },
-    });
-
     revalidatePath("/organizer");
+    revalidatePath(getOrganizerWorkspacePath(workspace.slug));
     revalidatePath("/w/[slug]", "page");
 
     return {
       success: true,
-      warning,
-      detectedFaces,
-      analysisStatus,
-      matchedPeople,
+      warning: `Stored original image. Run Process images in ${workspace.name} when the upload batch is ready.`,
+      detectedFaces: 0,
+      analysisStatus: photo.analysisStatus,
+      matchedPeople: 0,
     } satisfies UploadActionResult;
   } catch (error) {
     console.error("Upload error:", error);

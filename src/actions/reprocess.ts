@@ -1,11 +1,14 @@
 "use server";
 
+import { AnalysisStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { getManageableWorkspaceById } from "@/lib/workspaces";
+import { getManageableWorkspaceById, getOrganizerWorkspacePath } from "@/lib/workspaces";
 import { indexPhotoDescriptors, parseDescriptorPayload } from "@/lib/photoIndexing";
 import { acquireWorkspaceFaceIndexLock } from "@/lib/workspaceMutationLock";
+
+export type WorkspaceProcessMode = "queued" | "full";
 
 type ReprocessActionResult = {
   success: boolean;
@@ -14,6 +17,7 @@ type ReprocessActionResult = {
   detectedFaces?: number;
   analysisStatus?: "PROCESSED" | "NO_FACE" | "FAILED";
   matchedPeople?: number;
+  mode?: WorkspaceProcessMode;
 };
 
 async function getReprocessWorkspace(workspaceId: string) {
@@ -35,34 +39,65 @@ async function getReprocessWorkspace(workspaceId: string) {
   return workspace;
 }
 
-export async function beginWorkspaceReprocess(workspaceId: string) {
+export async function beginWorkspaceReprocess(
+  workspaceId: string,
+  mode: WorkspaceProcessMode = "full",
+) {
   try {
     const workspace = await getReprocessWorkspace(workspaceId);
 
     const photoCount = await prisma.$transaction(async (tx) => {
       await acquireWorkspaceFaceIndexLock(tx, workspace.id);
 
+      if (mode === "full") {
+        const count = await tx.photo.count({
+          where: { eventId: workspace.id },
+        });
+
+        await tx.face.deleteMany({
+          where: {
+            photo: {
+              eventId: workspace.id,
+            },
+          },
+        });
+        await tx.person.deleteMany({
+          where: {
+            eventId: workspace.id,
+          },
+        });
+        await tx.photo.updateMany({
+          where: { eventId: workspace.id },
+          data: {
+            faceCount: 0,
+            analysisStatus: "QUEUED",
+            analyzedAt: null,
+          },
+        });
+
+        return count;
+      }
+
+      const pendingWhere = {
+        eventId: workspace.id,
+        analysisStatus: {
+          in: [AnalysisStatus.QUEUED, AnalysisStatus.FAILED],
+        },
+      };
+
       const count = await tx.photo.count({
-        where: { eventId: workspace.id },
+        where: pendingWhere,
       });
 
       await tx.face.deleteMany({
         where: {
-          photo: {
-            eventId: workspace.id,
-          },
-        },
-      });
-      await tx.person.deleteMany({
-        where: {
-          eventId: workspace.id,
+          photo: pendingWhere,
         },
       });
       await tx.photo.updateMany({
-        where: { eventId: workspace.id },
+        where: pendingWhere,
         data: {
           faceCount: 0,
-          analysisStatus: "QUEUED",
           analyzedAt: null,
         },
       });
@@ -70,7 +105,7 @@ export async function beginWorkspaceReprocess(workspaceId: string) {
       return count;
     });
 
-    return { success: true, photoCount } satisfies ReprocessActionResult;
+    return { success: true, photoCount, mode } satisfies ReprocessActionResult;
   } catch (error) {
     console.error("Begin workspace reprocess error:", error);
     return {
@@ -192,9 +227,19 @@ export async function markWorkspacePhotoReprocessFailed(workspaceId: string, pho
 
 export async function finishWorkspaceReprocess(workspaceId: string) {
   try {
-    await getReprocessWorkspace(workspaceId);
+    const workspace = await getReprocessWorkspace(workspaceId);
+
+    await prisma.person.deleteMany({
+      where: {
+        eventId: workspace.id,
+        faces: {
+          none: {},
+        },
+      },
+    });
 
     revalidatePath("/organizer");
+    revalidatePath(getOrganizerWorkspacePath(workspace.slug));
     revalidatePath("/w/[slug]", "page");
     return { success: true } satisfies ReprocessActionResult;
   } catch (error) {
