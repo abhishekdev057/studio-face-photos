@@ -60,7 +60,7 @@ export default function ResetButton({ workspaceId, workspaceName }: ResetButtonP
         </button>
       </div>
 
-      {confirming && !loading && (
+        {confirming && !loading && (
         <div className="max-w-sm text-right text-xs text-red-600">
           This removes every photo, face match, and guest group from {workspaceName}.
         </div>

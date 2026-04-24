@@ -150,21 +150,21 @@ export default async function OrganizerWorkspacePage({ params }: WorkspacePagePr
           </div>
         </div>
 
-        <section className="hero-surface p-6 sm:p-8">
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-            <div className="max-w-3xl space-y-4">
+        <section className="hero-surface p-6 sm:p-8 lg:p-10">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_360px] xl:items-start">
+            <div className="max-w-3xl space-y-5">
               <div className="eyebrow-badge">
                 <FolderKanban className="h-3.5 w-3.5" />
-                Workspace overview
+                Workspace
               </div>
 
               <div>
-                <h1 className="text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
+                <h1 className="text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
                   {workspace.name}
                 </h1>
                 <p className="mt-3 text-sm leading-7 text-slate-500 sm:text-[15px]">
                   {workspace.description ||
-                    "Original uploads, strict verification, and one private camera-only guest link."}
+                    "Original uploads, clean processing, and one secure guest link."}
                 </p>
               </div>
 
@@ -181,33 +181,43 @@ export default async function OrganizerWorkspacePage({ params }: WorkspacePagePr
               </div>
             </div>
 
-            <div className="flex w-full flex-col gap-3 sm:w-auto sm:min-w-[300px]">
-              <a
-                href={publicLink ? `/w/${publicLink.slug}` : "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-disabled={!publicLink}
-                className="action-primary"
-              >
-                <ExternalLink className="h-4 w-4" />
-                Open guest link
-              </a>
-              {publicLink && (
+            <div className="surface-card-muted space-y-4 p-5">
+              <div>
+                <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Quick actions</div>
+                <div className="mt-2 text-lg font-semibold text-slate-950">Guest and team links</div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                <a
+                  href={publicLink ? `/w/${publicLink.slug}` : "#"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-disabled={!publicLink}
+                  className="action-primary"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Open guest link
+                </a>
+                {publicLink && (
+                  <CopyLinkButton
+                    path={`/w/${publicLink.slug}`}
+                    label="Copy guest link"
+                    copiedLabel="Guest link copied"
+                    className="action-secondary"
+                  />
+                )}
                 <CopyLinkButton
-                  path={`/w/${publicLink.slug}`}
-                  label="Copy guest link"
-                  copiedLabel="Guest link copied"
+                  path={getOrganizerWorkspacePath(workspace.slug)}
+                  label="Copy organizer link"
+                  copiedLabel="Organizer link copied"
                   className="action-secondary"
                 />
-              )}
-              <CopyLinkButton
-                path={getOrganizerWorkspacePath(workspace.slug)}
-                label="Copy organizer link"
-                copiedLabel="Organizer link copied"
-                className="action-secondary"
-              />
+              </div>
+
               {canManageActiveWorkspace && (
-                <ResetButton workspaceId={workspace.id} workspaceName={workspace.name} />
+                <div className="border-t border-slate-200 pt-4">
+                  <ResetButton workspaceId={workspace.id} workspaceName={workspace.name} />
+                </div>
               )}
             </div>
           </div>
@@ -230,61 +240,65 @@ export default async function OrganizerWorkspacePage({ params }: WorkspacePagePr
           ))}
         </section>
 
-        <section className="grid gap-6 2xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-          {canUploadActiveWorkspace ? (
-            <UploadForm workspaceId={workspace.id} workspaceName={workspace.name} />
-          ) : (
-            <div className="surface-card p-6 text-sm leading-6 text-slate-500">
-              Upload access is limited to this workspace team.
-            </div>
-          )}
-
-          {canManageActiveWorkspace ? (
-            <WorkspaceAccessManager
-              workspaceId={workspace.id}
-              ownerId={workspace.ownerId}
-              currentUserId={session.user.id}
-              members={workspace.members.map((member) => ({
-                userId: member.user.id,
-                name: member.user.name,
-                email: member.user.email,
-                image: member.user.image,
-                role: member.role,
-              }))}
-              invites={workspace.invites.map((invite) => ({
-                id: invite.id,
-                email: invite.email,
-                role: invite.role,
-                createdAt: invite.createdAt.toISOString(),
-              }))}
-            />
-          ) : (
-            <div className="surface-card p-6">
-              <div className="eyebrow-badge">
-                <Shield className="h-3.5 w-3.5" />
-                Access
+        <section className="grid gap-6 2xl:grid-cols-[minmax(0,1.08fr)_minmax(340px,0.92fr)]">
+          <div className="space-y-6">
+            {canUploadActiveWorkspace ? (
+              <UploadForm workspaceId={workspace.id} workspaceName={workspace.name} />
+            ) : (
+              <div className="surface-card p-6 text-sm leading-6 text-slate-500">
+                Upload access is limited to this workspace team.
               </div>
-              <div className="mt-4 text-lg font-semibold text-slate-950">Managed by owner or manager</div>
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                Contributors can upload and review results here, but team access and reset actions stay locked.
-              </p>
-            </div>
-          )}
-        </section>
+            )}
 
-        {canManageActiveWorkspace && (
-          <ReprocessWorkspaceButton
-            workspaceId={workspace.id}
-            workspaceName={workspace.name}
-            photos={reprocessPhotos}
-          />
-        )}
+            {canManageActiveWorkspace && (
+              <ReprocessWorkspaceButton
+                workspaceId={workspace.id}
+                workspaceName={workspace.name}
+                photos={reprocessPhotos}
+              />
+            )}
+          </div>
+
+          <div className="space-y-6">
+            {canManageActiveWorkspace ? (
+              <WorkspaceAccessManager
+                workspaceId={workspace.id}
+                ownerId={workspace.ownerId}
+                currentUserId={session.user.id}
+                members={workspace.members.map((member) => ({
+                  userId: member.user.id,
+                  name: member.user.name,
+                  email: member.user.email,
+                  image: member.user.image,
+                  role: member.role,
+                }))}
+                invites={workspace.invites.map((invite) => ({
+                  id: invite.id,
+                  email: invite.email,
+                  role: invite.role,
+                  createdAt: invite.createdAt.toISOString(),
+                }))}
+              />
+            ) : (
+              <div className="surface-card p-6">
+                <div className="eyebrow-badge">
+                  <Shield className="h-3.5 w-3.5" />
+                  Access
+                </div>
+                <div className="mt-4 text-lg font-semibold text-slate-950">Managed by owner or manager</div>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  Contributors can upload and review results here, but access changes stay locked.
+                </p>
+              </div>
+            )}
+          </div>
+        </section>
 
         <section className="space-y-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-2xl font-semibold text-slate-950">Guest groups</h2>
-              <p className="mt-1 text-sm text-slate-500">Matched clusters inside {workspace.name}.</p>
+              <p className="mt-1 text-sm text-slate-500">Matched groups inside {workspace.name}.</p>
             </div>
             <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
               {personCards.length} shown
@@ -292,7 +306,7 @@ export default async function OrganizerWorkspacePage({ params }: WorkspacePagePr
           </div>
 
           {personCards.length === 0 ? (
-            <div className="surface-card border-dashed px-6 py-14 text-center text-slate-500">
+            <div className="empty-state">
               No guest groups yet.
             </div>
           ) : (

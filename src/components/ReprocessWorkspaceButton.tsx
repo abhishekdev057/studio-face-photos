@@ -204,15 +204,15 @@ export default function ReprocessWorkspaceButton({
         <div>
           <div className="eyebrow-badge">
             <ShieldCheck className="h-3.5 w-3.5" />
-            Image processing
+            Processing
           </div>
           <h3 className="mt-4 text-xl font-semibold text-slate-950">
             {hasPendingPhotos ? "Process uploaded photos" : "Rebuild workspace index"}
           </h3>
           <p className="mt-1 text-sm text-slate-500">
             {hasPendingPhotos
-              ? "Upload first, then index the queued originals here. If nothing is pending, this button rebuilds the full workspace."
-              : "No pending uploads right now, so this button rebuilds every photo with the current model."}
+              ? "Run face indexing for the queued originals."
+              : "No queued items left. Rebuild the full workspace when you upgrade the model."}
           </p>
         </div>
 

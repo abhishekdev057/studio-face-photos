@@ -77,7 +77,7 @@ export default function PersonCard({
           )}
 
           <div className="absolute bottom-3 left-3 rounded-full bg-white/90 px-3 py-1 text-xs font-medium text-slate-700 backdrop-blur-md">
-            Album {person.faceCount}
+            {person.faceCount} match{person.faceCount === 1 ? "" : "es"}
           </div>
         </div>
       </Link>
@@ -85,7 +85,7 @@ export default function PersonCard({
       <div className="space-y-3 p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold text-slate-950">{person.name || "Guest cluster"}</div>
+            <div className="text-sm font-semibold text-slate-950">{person.name || "Guest group"}</div>
             <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
               <Users className="h-3.5 w-3.5" />
               {person.faceCount} matched face{person.faceCount === 1 ? "" : "s"}

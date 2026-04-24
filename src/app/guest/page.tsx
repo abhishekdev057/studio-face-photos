@@ -14,7 +14,7 @@ export default async function GuestPage() {
 
   return (
     <div className="page-shell flex min-h-[calc(100vh-78px)] items-center justify-center overflow-hidden py-10 text-slate-950">
-      <section className="hero-surface relative w-full max-w-5xl overflow-hidden">
+      <section className="hero-surface relative w-full max-w-6xl overflow-hidden">
         <div className="absolute inset-y-0 right-0 hidden w-1/2 bg-[radial-gradient(circle_at_50%_36%,rgba(103,232,249,0.28),transparent_32%),linear-gradient(135deg,#020617,#0f172a)] lg:block" />
         <div className="relative grid min-h-[520px] lg:grid-cols-[1fr_0.9fr]">
           <div className="flex flex-col justify-center p-8 md:p-12">
@@ -24,12 +24,12 @@ export default async function GuestPage() {
             </div>
 
             <h1 className="mt-6 max-w-xl text-5xl font-semibold tracking-tight md:text-6xl">
-              {hasSignedInViewer ? "Public access only." : "Open your private link."}
+              {hasSignedInViewer ? "Guest access only." : "Open your private link."}
             </h1>
             <p className="mt-5 max-w-lg text-sm leading-7 text-slate-500">
               {hasSignedInViewer
-                ? "This account is not assigned as an organizer. Use a workspace guest link to open the camera scan."
-                : "Guest photo access works only from a secure workspace link shared by the organizer."}
+                ? "This account is not an organizer. Open a secure workspace link to scan and view results."
+                : "Guest photo access starts from a secure workspace link shared by the organizer."}
             </p>
 
             <div className="mt-8 grid gap-3 sm:grid-cols-2">
@@ -57,6 +57,7 @@ export default async function GuestPage() {
           <div className="relative hidden items-center justify-center p-10 lg:flex">
             <div className="absolute h-80 w-80 rounded-full border border-cyan-200/20" />
             <div className="absolute h-56 w-56 rounded-full border border-cyan-200/30" />
+            <div className="absolute h-40 w-40 animate-float rounded-[2rem] border border-white/10" />
             <div className="relative flex h-44 w-44 items-center justify-center rounded-[3rem] bg-white/10 text-cyan-100 shadow-[0_0_80px_rgba(103,232,249,0.18)] backdrop-blur">
               <Camera className="h-16 w-16" />
             </div>

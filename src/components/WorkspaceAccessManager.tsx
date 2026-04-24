@@ -63,14 +63,15 @@ export default function WorkspaceAccessManager({
   );
 
   return (
-    <div className="surface-card space-y-5 p-5">
+    <div className="surface-card space-y-5 p-5 sm:p-6">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
-          <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
-            <Users className="h-4 w-4 text-slate-600" />
+          <div className="eyebrow-badge">
+            <Users className="h-3.5 w-3.5" />
             Workspace team
           </div>
-          <p className="text-sm text-slate-500">Invite organizers and choose their level.</p>
+          <div className="mt-4 text-xl font-semibold text-slate-950">Access and roles</div>
+          <p className="text-sm text-slate-500">Invite organizers and set their level.</p>
         </div>
         <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
           {activeMembers.length} active
@@ -78,7 +79,7 @@ export default function WorkspaceAccessManager({
       </div>
 
       <div className="surface-card-muted px-4 py-3 text-sm text-slate-500">
-        Only invited organizers can open the dashboard. Guests should use the private camera link.
+        Organizers open the dashboard. Guests use the private camera link.
       </div>
 
       <form
@@ -106,12 +107,12 @@ export default function WorkspaceAccessManager({
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           placeholder="teammate@example.com"
-          className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none placeholder:text-slate-400 focus:border-slate-400 focus:bg-white"
+          className="field-input"
         />
         <select
           value={selectedRole}
           onChange={(event) => setSelectedRole(event.target.value as WorkspaceRole)}
-          className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none focus:border-slate-400 focus:bg-white"
+          className="field-select"
         >
           {roleOptions.map((role) => (
             <option key={role} value={role}>

@@ -13,18 +13,18 @@ export default async function LoginPage() {
   return (
     <div className="page-shell relative flex min-h-[calc(100vh-78px)] items-center justify-center overflow-hidden py-10 text-slate-950">
       <div className="relative z-10 grid w-full max-w-6xl gap-6 lg:grid-cols-[1.12fr_0.88fr]">
-        <section className="hero-surface p-8 md:p-10">
+        <section className="order-2 hero-surface p-8 md:p-10 lg:order-1">
           <div className="eyebrow-badge">
             <Camera className="h-3.5 w-3.5" />
-            Private face workspace
+            Aura workspace
           </div>
 
           <div className="mt-6 max-w-2xl space-y-5">
             <h1 className="text-4xl font-semibold tracking-tight md:text-6xl">
-              Enterprise photo access with strict private matching.
+              Premium private photo delivery.
             </h1>
             <p className="text-base leading-7 text-slate-500 md:text-lg">
-              Keep every workspace separate, verify people conservatively, and share one secure camera-only access link.
+              Separate every workspace, keep guest access camera-only, and run uploads and processing from one clean control flow.
             </p>
           </div>
 
@@ -33,17 +33,17 @@ export default async function LoginPage() {
               {
                 icon: FolderKanban,
                 title: "Workspaces",
-                body: "Keep every event separate.",
+                body: "One event, one clean space.",
               },
               {
                 icon: Shield,
                 title: "Private access",
-                body: "Guests only see their own matches.",
+                body: "Verified results only.",
               },
               {
                 icon: ScanFace,
                 title: "Camera search",
-                body: "One scan in, matched photos out.",
+                body: "Scan once. Get your photos.",
               },
             ].map((feature) => (
               <div key={feature.title} className="surface-card-muted p-5">
@@ -55,21 +55,21 @@ export default async function LoginPage() {
           </div>
         </section>
 
-        <section className="surface-card p-8">
+        <section className="order-1 surface-card p-8 lg:order-2">
           <div className="space-y-3 text-center">
             <div className="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-950 text-white shadow-[0_18px_40px_rgba(15,23,42,0.12)]">
               <Camera className="h-8 w-8" />
             </div>
             <h2 className="text-3xl font-semibold">Sign in</h2>
             <p className="text-sm leading-6 text-slate-500">
-              Your dashboard, team access, and guest links stay behind your account.
+              Open your control room.
             </p>
           </div>
 
           <div className="mt-8 space-y-5">
             <GoogleLoginForm />
             <div className="surface-card-muted px-4 py-4 text-sm text-slate-500">
-              Upload only the photos you have permission to process and share.
+              Only upload photos you are allowed to manage.
             </div>
           </div>
         </section>

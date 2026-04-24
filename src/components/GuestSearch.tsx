@@ -269,25 +269,35 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
 
   return (
     <div className="space-y-8">
-      <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white text-slate-950 shadow-[0_30px_80px_rgba(15,23,42,0.12)]">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-2 p-6 pb-0 lg:p-8 lg:pb-0">
-            <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-slate-600">
+      <section className="surface-card overflow-hidden p-4 text-slate-950 sm:p-6 lg:p-7">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-4">
+            <div className="eyebrow-badge">
               <ScanFace className="h-3.5 w-3.5" />
-              Live camera access
+              Camera scan
             </div>
-            <h1 className="text-4xl font-semibold tracking-tight">Scan your face</h1>
-            <p className="text-sm text-slate-500">
-              {workspaceName}. Camera only. No gallery upload.
-            </p>
+            <div>
+              <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Find your photos</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                {workspaceName}. Camera only.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                No gallery upload
+              </div>
+              <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                Verified results
+              </div>
+            </div>
           </div>
 
-          <div className={`mx-6 mt-6 rounded-full border px-4 py-2 text-sm lg:mx-8 ${statusTone}`}>
+          <div className={`w-fit rounded-full border px-4 py-2 text-sm ${statusTone}`}>
             {status}
           </div>
         </div>
 
-        <div className="mt-6 p-4 pt-0 lg:p-6 lg:pt-0">
+        <div className="mt-6">
           {cameraOpen ? (
             <div className="relative overflow-hidden rounded-[1.8rem] border border-slate-200 bg-slate-950 shadow-inner">
               <Webcam
@@ -329,17 +339,18 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
               </div>
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={() => {
-                setErrorMessage(null);
-                setCameraOpen(true);
-              }}
-              disabled={searching}
-              className="group relative flex min-h-[360px] w-full overflow-hidden rounded-[1.8rem] bg-slate-950 px-6 text-center text-white transition hover:bg-slate-900 disabled:opacity-60"
+              <button
+                type="button"
+                onClick={() => {
+                  setErrorMessage(null);
+                  setCameraOpen(true);
+                }}
+                disabled={searching}
+              className="group relative flex min-h-[320px] w-full overflow-hidden rounded-[1.8rem] bg-slate-950 px-6 text-center text-white transition hover:bg-slate-900 disabled:opacity-60 sm:min-h-[380px]"
             >
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(103,232,249,0.24),transparent_32%),linear-gradient(135deg,#020617,#0f172a)]" />
               <div className="absolute left-1/2 top-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-300/20 transition group-hover:scale-105" />
+              <div className="absolute left-1/2 top-1/2 h-44 w-44 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/10 transition group-hover:scale-110" />
               <div className="relative z-10 m-auto flex flex-col items-center gap-5">
                 <div className="rounded-full bg-white/10 p-5 shadow-[0_0_50px_rgba(103,232,249,0.16)]">
                   <Camera className="h-8 w-8" />
@@ -392,7 +403,7 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
       )}
 
       {searched && (
-        <section className="space-y-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
+        <section className="surface-card space-y-6 p-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-2xl font-semibold text-slate-950">
@@ -466,7 +477,7 @@ export default function GuestSearch({ workspaceSlug, workspaceName }: GuestSearc
               ))}
             </div>
           ) : (
-            <div className="rounded-[1.8rem] border border-dashed border-slate-200 bg-slate-50 px-6 py-14 text-center">
+            <div className="empty-state">
               <div className="text-lg font-semibold text-slate-950">Nothing matched yet</div>
               <p className="mt-2 text-sm text-slate-500">
                 {resultMessage || "We only show photos after a high-confidence match."}

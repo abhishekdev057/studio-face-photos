@@ -40,19 +40,22 @@ export default function PhotoGrid({ photos }: PhotoGridProps) {
   }, [lightboxIndex, photos.length]);
 
   return (
-    <section className="surface-card space-y-4 p-5">
+    <section className="surface-card space-y-5 p-5 sm:p-6">
       <div className="flex items-center justify-between gap-4">
-        <h3 className="flex items-center gap-2 text-xl font-semibold text-slate-950">
-          <ImageIcon className="h-5 w-5 text-slate-500" />
-          Workspace Gallery
-        </h3>
+        <div>
+          <div className="eyebrow-badge">
+            <ImageIcon className="h-3.5 w-3.5" />
+            Gallery
+          </div>
+          <h3 className="mt-4 text-xl font-semibold text-slate-950">Workspace gallery</h3>
+        </div>
         <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
           {photos.length} photo{photos.length === 1 ? "" : "s"}
         </div>
       </div>
 
       {photos.length === 0 ? (
-        <div className="surface-card-muted border-dashed px-6 py-14 text-center text-sm text-slate-500">
+        <div className="empty-state">
           No photos uploaded yet.
         </div>
       ) : (

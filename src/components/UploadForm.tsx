@@ -322,12 +322,12 @@ export default function UploadForm({ workspaceId, workspaceName }: UploadFormPro
         <div className="space-y-2">
           <div className="eyebrow-badge">
             <HardDriveUpload className="h-3.5 w-3.5" />
-            Original upload queue
+            Upload queue
           </div>
           <div>
             <h3 className="text-2xl font-semibold">Upload to {workspaceName}</h3>
             <p className="mt-1 text-sm text-slate-500">
-              Upload originals first. When the batch is done, press Process images to index faces.
+              Upload originals first. Process images when the batch is ready.
             </p>
           </div>
         </div>
@@ -370,53 +370,63 @@ export default function UploadForm({ workspaceId, workspaceName }: UploadFormPro
             <div>Failed: {queueStats.failed}</div>
           </div>
           <div className="space-y-2 rounded-[1.2rem] border border-slate-200 bg-white p-3 font-mono text-xs text-slate-500">
-            {logs.length > 0 ? logs.map((log, index) => <div key={`${log}-${index}`}>{log}</div>) : <div>No upload activity yet.</div>}
+            {logs.length > 0 ? (
+              logs.map((log, index) => <div key={`${log}-${index}`}>{log}</div>)
+            ) : (
+              <div>No upload activity yet.</div>
+            )}
           </div>
         </div>
       )}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-        <label
-          className={`inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-[1.35rem] bg-slate-950 px-5 py-4 text-sm font-semibold text-white transition hover:bg-slate-800 ${
-            isUploading || !queueReady ? "pointer-events-none opacity-60" : ""
-          }`}
-        >
-          {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-          {isUploading ? "Uploading..." : "Choose Photos"}
-          <input
-            type="file"
-            multiple
-            accept="image/*"
-            className="hidden"
-            onChange={handleFiles}
-            disabled={isUploading || !queueReady}
-          />
-        </label>
+      <div className="surface-card-muted flex flex-col gap-4 p-4">
+        <div className="text-sm text-slate-600">
+          Add photos anytime. This queue stays resumable on this device.
+        </div>
 
-        {canResume && (
-          <button
-            type="button"
-            onClick={() => void runUploadQueue()}
-            className="inline-flex items-center justify-center gap-2 rounded-[1.35rem] border border-slate-200 bg-white px-5 py-4 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          <label
+            className={`inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-[1.35rem] bg-slate-950 px-5 py-4 text-sm font-semibold text-white transition hover:bg-slate-800 ${
+              isUploading || !queueReady ? "pointer-events-none opacity-60" : ""
+            }`}
           >
-            <RotateCcw className="h-4 w-4" />
-            Resume upload
-          </button>
-        )}
+            {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            {isUploading ? "Uploading..." : "Choose photos"}
+            <input
+              type="file"
+              multiple
+              accept="image/*"
+              className="hidden"
+              onChange={handleFiles}
+              disabled={isUploading || !queueReady}
+            />
+          </label>
 
-        {isUploading && (
-          <button
-            type="button"
-            onClick={() => {
-              stopRef.current = true;
-              addLog("Stop requested. Finishing active uploads.");
-            }}
-            className="inline-flex items-center justify-center gap-2 rounded-[1.35rem] border border-red-200 bg-red-50 px-5 py-4 text-sm font-semibold text-red-700 transition hover:bg-red-100"
-          >
-            <AlertCircle className="h-4 w-4" />
-            Stop
-          </button>
-        )}
+          {canResume && (
+            <button
+              type="button"
+              onClick={() => void runUploadQueue()}
+              className="inline-flex items-center justify-center gap-2 rounded-[1.35rem] border border-slate-200 bg-white px-5 py-4 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
+            >
+              <RotateCcw className="h-4 w-4" />
+              Resume queue
+            </button>
+          )}
+
+          {isUploading && (
+            <button
+              type="button"
+              onClick={() => {
+                stopRef.current = true;
+                addLog("Stop requested. Finishing active uploads.");
+              }}
+              className="inline-flex items-center justify-center gap-2 rounded-[1.35rem] border border-red-200 bg-red-50 px-5 py-4 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+            >
+              <AlertCircle className="h-4 w-4" />
+              Stop
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-col gap-3 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">

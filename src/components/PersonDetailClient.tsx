@@ -80,9 +80,9 @@ export default function PersonDetailClient({
   };
 
   return (
-    <div className="min-h-screen px-4 py-8 text-slate-950 md:px-8">
+    <div className="page-shell min-h-screen py-8 text-slate-950">
       <div className="mx-auto max-w-7xl space-y-8">
-        <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
+        <div className="hero-surface p-6 sm:p-8">
           <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
             <div className="flex items-center gap-4">
               <Link
@@ -92,10 +92,10 @@ export default function PersonDetailClient({
                 <ArrowLeft className="h-5 w-5 text-slate-700" />
               </Link>
               <div className="space-y-2">
-                <div className="text-xs uppercase tracking-[0.24em] text-slate-400">{workspaceName}</div>
+                <div className="eyebrow-badge">{workspaceName}</div>
                 <h1 className="flex items-center gap-2 text-3xl font-semibold tracking-tight text-slate-950">
                   <User className="h-6 w-6 text-slate-500" />
-                  {person.name || "Detected guest group"}
+                  {person.name || "Guest group"}
                 </h1>
                 <p className="text-sm text-slate-500">
                   {photos.length} photo{photos.length === 1 ? "" : "s"} across {person.faceCount} recognized face match
@@ -145,18 +145,18 @@ export default function PersonDetailClient({
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+          <div className="metric-card">
             <div className="text-3xl font-semibold text-slate-950">{photos.length}</div>
             <div className="mt-1 flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-400">
               <ImageIcon className="h-4 w-4" />
               Photos surfaced
             </div>
           </div>
-          <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+          <div className="metric-card">
             <div className="text-3xl font-semibold text-slate-950">{person.faceCount}</div>
             <div className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">Face matches kept in album</div>
           </div>
-          <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+          <div className="metric-card">
             <div className="text-3xl font-semibold text-slate-950">{workspaceName}</div>
             <div className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">Active workspace</div>
           </div>
@@ -223,7 +223,7 @@ export default function PersonDetailClient({
         </div>
 
         {photos.length === 0 && (
-          <div className="rounded-[1.75rem] border border-dashed border-slate-200 bg-white px-6 py-16 text-center text-slate-500">
+          <div className="empty-state">
             No photos are still attached to this guest group.
           </div>
         )}
