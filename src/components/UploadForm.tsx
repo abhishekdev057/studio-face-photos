@@ -17,6 +17,7 @@ import {
   finalizeWorkspaceUpload,
   uploadFileDirectToCloudinary,
 } from "@/utils/directUpload";
+import { prepareImageForUpload } from "@/utils/image";
 import {
   clearCompletedUploadQueue,
   enqueueUploadFiles,
@@ -212,8 +213,14 @@ export default function UploadForm({ workspaceId, workspaceName }: UploadFormPro
           });
 
           const hash = await computeFileSha256(file);
+          const preparedUpload = await prepareImageForUpload(file);
+
+          if (preparedUpload.optimized && preparedUpload.summary) {
+            addLog(`${item.name} optimized for upload limit: ${preparedUpload.summary}.`);
+          }
+
           const session = await createWorkspaceUploadSession({
-            file,
+            file: preparedUpload.file,
             hash,
             workspaceId,
           });
@@ -239,7 +246,7 @@ export default function UploadForm({ workspaceId, workspaceName }: UploadFormPro
             throw new Error("Upload session did not return Cloudinary parameters.");
           }
 
-          const publicId = await uploadFileDirectToCloudinary(file, session.upload);
+          const publicId = await uploadFileDirectToCloudinary(preparedUpload.file, session.upload);
           const result = await finalizeWorkspaceUpload({
             hash,
             publicId,

@@ -3,7 +3,11 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { createSignedBrowserUpload } from "@/lib/cloudinary";
 import { prisma } from "@/lib/prisma";
-import { isAllowedImageMimeType, MAX_IMAGE_UPLOAD_BYTES } from "@/lib/uploadSecurity";
+import {
+  CLOUDINARY_BROWSER_UPLOAD_LIMIT_BYTES,
+  isAllowedImageMimeType,
+  MAX_IMAGE_UPLOAD_BYTES,
+} from "@/lib/uploadSecurity";
 import { getUploadWorkspaceById } from "@/lib/workspaces";
 
 export const runtime = "nodejs";
@@ -47,6 +51,16 @@ export async function POST(request: Request) {
     if (fileSize <= 0 || fileSize > MAX_IMAGE_UPLOAD_BYTES) {
       return NextResponse.json(
         { success: false, error: "Image is too large. Keep uploads below 25MB." },
+        { status: 413 },
+      );
+    }
+
+    if (fileSize > CLOUDINARY_BROWSER_UPLOAD_LIMIT_BYTES) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Prepared image is still above the 10MB Cloudinary upload limit.",
+        },
         { status: 413 },
       );
     }
