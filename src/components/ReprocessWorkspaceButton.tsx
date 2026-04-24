@@ -62,7 +62,7 @@ export default function ReprocessWorkspaceButton({
   const stopRef = useRef(false);
   const [running, setRunning] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const [status, setStatus] = useState("Ready to process uploads");
+  const [status, setStatus] = useState("Ready to process unprocessed photos");
   const [stats, setStats] = useState<ReprocessStats>(buildEmptyStats(photos.length));
 
   const pendingPhotos = useMemo(
@@ -79,7 +79,7 @@ export default function ReprocessWorkspaceButton({
 
   const handleReprocess = async () => {
     if (targetPhotos.length === 0) {
-      setStatus("Add photos first, then process the workspace.");
+      setStatus("Add photos first, then process unprocessed photos.");
       return;
     }
 
@@ -207,11 +207,11 @@ export default function ReprocessWorkspaceButton({
             Processing
           </div>
           <h3 className="mt-4 text-xl font-semibold text-slate-950">
-            {hasPendingPhotos ? "Process uploaded photos" : "Rebuild workspace index"}
+            {hasPendingPhotos ? "Process unprocessed photos" : "Rebuild workspace index"}
           </h3>
           <p className="mt-1 text-sm text-slate-500">
             {hasPendingPhotos
-              ? "Run face indexing for the queued originals."
+              ? "Run face indexing for the unprocessed originals."
               : "No queued items left. Rebuild the full workspace when you upgrade the model."}
           </p>
         </div>
@@ -244,7 +244,7 @@ export default function ReprocessWorkspaceButton({
                   ? "Confirm process"
                   : "Confirm rebuild"
                 : hasPendingPhotos
-                  ? "Process images"
+                  ? "Process unprocessed"
                   : "Reprocess images"}
           </button>
         </div>
@@ -260,7 +260,7 @@ export default function ReprocessWorkspaceButton({
 
       <div className="mt-5 grid gap-3 sm:grid-cols-4">
         <div className="surface-card-muted p-4">
-          <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Pending</div>
+          <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Unprocessed</div>
           <div className="mt-2 text-2xl font-semibold text-slate-950">{pendingPhotos.length}</div>
         </div>
         <div className="surface-card-muted p-4">
