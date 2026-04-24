@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { normalizeEmail, slugifyWorkspaceName } from "@/lib/slug";
-import { getManageableWorkspaceById, isOrganizer } from "@/lib/workspaces";
+import { getManageableWorkspaceById, getOrganizerWorkspacePath, isOrganizer } from "@/lib/workspaces";
 
 type WorkspaceActionResult = {
   success: boolean;
@@ -71,6 +71,7 @@ export async function createWorkspace(name: string, description?: string) {
     });
 
     revalidatePath("/organizer");
+    revalidatePath(getOrganizerWorkspacePath(slug));
     return { success: true, workspaceSlug: slug } satisfies WorkspaceActionResult;
   } catch (error) {
     console.error("Create workspace error:", error);
@@ -143,6 +144,7 @@ export async function inviteWorkspaceMember(workspaceId: string, email: string, 
       ]);
 
       revalidatePath("/organizer");
+      revalidatePath(getOrganizerWorkspacePath(workspace.slug));
       return {
         success: true,
         message: "User was added to the workspace immediately.",
@@ -171,6 +173,7 @@ export async function inviteWorkspaceMember(workspaceId: string, email: string, 
     });
 
     revalidatePath("/organizer");
+    revalidatePath(getOrganizerWorkspacePath(workspace.slug));
     return {
       success: true,
       message: "Invitation saved. Organizer access will activate as soon as that user signs in.",
@@ -209,6 +212,7 @@ export async function removeWorkspaceMember(workspaceId: string, userId: string)
     });
 
     revalidatePath("/organizer");
+    revalidatePath(getOrganizerWorkspacePath(workspace.slug));
     return { success: true } satisfies WorkspaceActionResult;
   } catch (error) {
     console.error("Remove workspace member error:", error);
@@ -240,6 +244,7 @@ export async function revokeWorkspaceInvite(workspaceId: string, inviteId: strin
     });
 
     revalidatePath("/organizer");
+    revalidatePath(getOrganizerWorkspacePath(workspace.slug));
     return { success: true } satisfies WorkspaceActionResult;
   } catch (error) {
     console.error("Revoke workspace invite error:", error);

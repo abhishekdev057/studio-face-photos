@@ -3,6 +3,7 @@
 import { Trash2, User, Users } from "lucide-react";
 import Link from "next/link";
 import { deletePerson } from "@/actions/delete";
+import { getOrganizerPersonPath } from "@/lib/workspaces";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -57,7 +58,7 @@ export default function PersonCard({
 
   return (
     <div className="group overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.06)] transition hover:-translate-y-1 hover:border-slate-300">
-      <Link href={`/organizer/person/${person.id}?workspace=${workspaceSlug}`} className="block">
+      <Link href={getOrganizerPersonPath(workspaceSlug, person.id)} className="block">
         <div className="relative aspect-[0.92] overflow-hidden">
           {person.coverUrl ? (
             <>

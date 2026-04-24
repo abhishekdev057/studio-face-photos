@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, User, ImageIcon, Trash2, ExternalLink } from "lucide-react";
 import { deletePerson, deletePhoto } from "@/actions/delete";
+import { getOrganizerWorkspacePath } from "@/lib/workspaces";
 import { useRouter } from "next/navigation";
 
 interface PersonDetailClientProps {
@@ -50,7 +51,7 @@ export default function PersonDetailClient({
     setConfirmingAlbumDelete(false);
     const result = await deletePerson(person.id, workspaceId);
     if (result.success) {
-      router.push(`/organizer?workspace=${workspaceSlug}`);
+      router.push(getOrganizerWorkspacePath(workspaceSlug));
       router.refresh();
       return;
     }
@@ -85,7 +86,7 @@ export default function PersonDetailClient({
           <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
             <div className="flex items-center gap-4">
               <Link
-                href={`/organizer?workspace=${workspaceSlug}`}
+                href={getOrganizerWorkspacePath(workspaceSlug)}
                 className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-slate-50 transition hover:bg-white"
               >
                 <ArrowLeft className="h-5 w-5 text-slate-700" />

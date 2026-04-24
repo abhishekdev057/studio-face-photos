@@ -1,6 +1,7 @@
 "use client";
 
 import { createWorkspace } from "@/actions/workspace";
+import { getOrganizerWorkspacePath } from "@/lib/workspaces";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { FolderPlus, Loader2 } from "lucide-react";
@@ -29,7 +30,7 @@ export default function WorkspaceCreateForm() {
 
           setError(null);
           form.reset();
-          router.push(`/organizer?workspace=${result.workspaceSlug}`);
+          router.push(getOrganizerWorkspacePath(result.workspaceSlug));
           router.refresh();
         });
       }}

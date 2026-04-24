@@ -12,6 +12,30 @@ export function isOrganizer(role: Role | undefined) {
   return role === "ADMIN" || role === "ORGANIZER";
 }
 
+export function formatWorkspaceRole(role: WorkspaceRole | string) {
+  return role.charAt(0) + role.slice(1).toLowerCase();
+}
+
+export function formatGlobalRole(role: Role | undefined) {
+  if (role === "ADMIN") {
+    return "System admin";
+  }
+
+  if (role === "ORGANIZER") {
+    return "Organizer";
+  }
+
+  return "Viewer";
+}
+
+export function getOrganizerWorkspacePath(slug: string) {
+  return `/organizer/workspace/${encodeURIComponent(slug)}`;
+}
+
+export function getOrganizerPersonPath(workspaceSlug: string, personId: string) {
+  return `${getOrganizerWorkspacePath(workspaceSlug)}/person/${encodeURIComponent(personId)}`;
+}
+
 export function canManageWorkspaceRole(role: WorkspaceRole | null | undefined) {
   return !!role && MANAGE_ROLES.includes(role);
 }
